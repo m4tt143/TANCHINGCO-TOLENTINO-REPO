@@ -15,7 +15,7 @@ import java.util.List;
  *   - Collision detection
  *   - Rendering all screens
  */
-public class GamePanel extends JPanel implements KeyListener {
+public class GamePanel extends JPanel implements KeyListener, MouseListener {
 
     // ── Game States ──────────────────────────────────────────────
     public enum GameState { MENU, PLAYING, UPGRADE, GAME_OVER }
@@ -44,11 +44,29 @@ public class GamePanel extends JPanel implements KeyListener {
     // ── Damage Flash ─────────────────────────────────────────────
     private int damageFlashTicks = 0;
 
+    // ── Mouse Input ──────────────────────────────────────────────
+    private int mouseX = 0;
+    private int mouseY = 0;
+    private boolean mousePressed = false;
+
     public GamePanel() {
         this.setPreferredSize(new Dimension(GameFrame.WIDTH, GameFrame.HEIGHT));
         this.setBackground(Color.BLACK);
         this.setFocusable(true);
         this.addKeyListener(this);
+        this.addMouseListener(this);
+        this.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                mouseX = e.getX();
+                mouseY = e.getY();
+            }
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                mouseX = e.getX();
+                mouseY = e.getY();
+            }
+        });
 
         initObjects();
 
@@ -104,6 +122,13 @@ public class GamePanel extends JPanel implements KeyListener {
 
         // Update player
         player.update();
+
+        // Manual shooting: fire at mouse position when clicked
+        if (mousePressed && player.canShoot()) {
+            fireAtMouse();
+            player.resetCooldown();
+            mousePressed = false;  // One click = one shot
+        }
 
         // Update bullets; remove off-screen ones
         List<Bullet> deadBullets  = new ArrayList<>();
@@ -173,6 +198,30 @@ public class GamePanel extends JPanel implements KeyListener {
         float dx  = target.getCenterX() - player.getCenterX();
         float dy  = target.getCenterY() - player.getCenterY();
         float len = (float) Math.sqrt(dx * dx + dy * dy);
+        float nx  = dx / len;
+        float ny  = dy / len;
+
+        bullets.add(new Bullet(player.getCenterX(), player.getCenterY(), nx, ny, player.damage));
+
+        if (player.multishot) {
+            float angle = 0.28f;
+            // Left spread
+            float cosA = (float) Math.cos(angle),  sinA = (float) Math.sin(angle);
+            bullets.add(new Bullet(player.getCenterX(), player.getCenterY(),
+                    nx * cosA - ny * sinA, nx * sinA + ny * cosA, player.damage));
+            // Right spread
+            float cosB = (float) Math.cos(-angle), sinB = (float) Math.sin(-angle);
+            bullets.add(new Bullet(player.getCenterX(), player.getCenterY(),
+                    nx * cosB - ny * sinB, nx * sinB + ny * cosB, player.damage));
+        }
+    }
+
+    /** Fire one bullet (or three if multishot is active) toward the mouse position. */
+    private void fireAtMouse() {
+        float dx  = mouseX - player.getCenterX();
+        float dy  = mouseY - player.getCenterY();
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        if (len == 0) return;  // Don't shoot if mouse is at player center
         float nx  = dx / len;
         float ny  = dy / len;
 
@@ -282,7 +331,7 @@ public class GamePanel extends JPanel implements KeyListener {
         g.setColor(Color.LIGHT_GRAY);
         String[] lines = {
             "Move:  W A S D  or  Arrow Keys",
-            "Aim & Shoot:  AUTOMATIC",
+            "Aim & Shoot:  LEFT CLICK",
             "",
             "Survive endless waves of enemies.",
             "Choose upgrades between waves.",
@@ -558,4 +607,29 @@ public class GamePanel extends JPanel implements KeyListener {
 
     @Override
     public void keyTyped(KeyEvent e) { /* not used */ }
+
+    // ─────────────────────────────────────────────────────────────
+    //  Mouse Listener
+    // ─────────────────────────────────────────────────────────────
+
+    @Override
+    public void mousePressed(MouseEvent e) {
+        if (state == GameState.PLAYING) {
+            mousePressed = true;
+        }
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent e) {
+        mousePressed = false;
+    }
+
+    @Override
+    public void mouseClicked(MouseEvent e) { /* not used */ }
+
+    @Override
+    public void mouseEntered(MouseEvent e) { /* not used */ }
+
+    @Override
+    public void mouseExited(MouseEvent e) { /* not used */ }
 }
