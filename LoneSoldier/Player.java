@@ -61,10 +61,17 @@ public class Player {
         return new Rectangle((int) x + 5, (int) y + 5, SIZE - 10, SIZE - 10);
     }
 
-    /** Draw the player as a blue soldier character. */
-    public void draw(Graphics2D g) {
+    /** Draw the player rotated to face the mouse cursor.
+     *  aimAngle is in radians; 0 = facing up, increases clockwise. */
+    public void draw(Graphics2D g, double aimAngle) {
         int px = (int) x;
         int py = (int) y;
+        float cx = getCenterX();
+        float cy = getCenterY();
+
+        // Save transform, rotate around player center toward mouse
+        java.awt.geom.AffineTransform old = g.getTransform();
+        g.rotate(aimAngle, cx, cy);
 
         // Drop shadow
         g.setColor(new Color(0, 0, 0, 70));
@@ -74,7 +81,7 @@ public class Player {
         g.setColor(new Color(40, 110, 220));
         g.fillOval(px, py, SIZE, SIZE);
 
-        // Helmet (darker blue top half)
+        // Helmet (darker blue — top half points in aim direction)
         g.setColor(new Color(20, 70, 160));
         g.fillArc(px + 4, py, SIZE - 8, SIZE / 2 + 4, 0, 180);
 
@@ -88,7 +95,10 @@ public class Player {
         g.fillOval(px + 8,  py + 15, 3, 3);
         g.fillOval(px + 21, py + 15, 3, 3);
 
-        // Star badge above player
+        // Restore transform so the star badge stays upright in world space
+        g.setTransform(old);
+
+        // Star badge above player (always upright)
         g.setFont(new Font("Arial", Font.BOLD, 11));
         g.setColor(new Color(255, 215, 0));
         g.drawString("*", px + SIZE / 2 - 4, py - 3);

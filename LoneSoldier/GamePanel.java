@@ -324,7 +324,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         // Draw entities
         for (Bullet b : bullets) b.draw(g);
         for (Enemy  e : enemies) e.draw(g);
-        player.draw(g);
+        // Calculate angle from player center to mouse (offset by -PI/2 so helmet faces up by default)
+        double aimAngle = Math.atan2(mouseY - player.getCenterY(), mouseX - player.getCenterX()) + Math.PI / 2;
+        player.draw(g, aimAngle);
 
         // HUD overlay
         drawHUD(g);
