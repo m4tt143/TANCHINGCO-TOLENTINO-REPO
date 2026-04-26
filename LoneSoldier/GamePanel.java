@@ -15,7 +15,7 @@ import java.util.List;
  *   - Collision detection
  *   - Rendering all screens
  */
-public class GamePanel extends JPanel implements KeyListener, MouseListener {
+public class GamePanel extends JPanel implements KeyListener, MouseListener, MouseMotionListener {
 
     // ── Game States ──────────────────────────────────────────────
     public enum GameState { MENU, PLAYING, UPGRADE, GAME_OVER }
@@ -44,10 +44,10 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
     // ── Damage Flash ─────────────────────────────────────────────
     private int damageFlashTicks = 0;
 
-    // ── Mouse Input ──────────────────────────────────────────────
-    private int mouseX = 0;
-    private int mouseY = 0;
-    private boolean mousePressed = false;
+    // ── Mouse Aim & Shoot ─────────────────────────────────────────
+    private int  mouseX   = GameFrame.WIDTH  / 2;
+    private int  mouseY   = GameFrame.HEIGHT / 2;
+    private boolean mouseDown = false;
 
     public GamePanel() {
         this.setPreferredSize(new Dimension(GameFrame.WIDTH, GameFrame.HEIGHT));
@@ -55,18 +55,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
         this.setFocusable(true);
         this.addKeyListener(this);
         this.addMouseListener(this);
-        this.addMouseMotionListener(new MouseMotionAdapter() {
-            @Override
-            public void mouseMoved(MouseEvent e) {
-                mouseX = e.getX();
-                mouseY = e.getY();
-            }
-            @Override
-            public void mouseDragged(MouseEvent e) {
-                mouseX = e.getX();
-                mouseY = e.getY();
-            }
-        });
+        this.addMouseMotionListener(this);
 
         initObjects();
 
@@ -117,17 +106,18 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
             updateHighScore();
             prepareUpgrades();
             state = GameState.UPGRADE;
+            SoundManager.waveClear();
             return;
         }
 
         // Update player
         player.update();
 
-        // Manual shooting: fire at mouse position when clicked
-        if (mousePressed && player.canShoot()) {
-            fireAtMouse();
+        // Mouse-driven shooting: fire toward cursor when left button held
+        if (mouseDown && player.canShoot()) {
+            fireTowardMouse();
             player.resetCooldown();
-            mousePressed = false;  // One click = one shot
+            SoundManager.shoot();
         }
 
         // Update bullets; remove off-screen ones
@@ -149,6 +139,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
                     if (e.hp <= 0) {
                         deadEnemies.add(e);
                         score++;
+                        SoundManager.enemyDie();
+                    } else {
+                        SoundManager.enemyHit();
                     }
                     break;
                 }
@@ -166,6 +159,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
                 player.takeDamage(1);
                 reachedPlayer.add(e);
                 damageFlashTicks = 12;
+                SoundManager.playerHit();
             }
         }
         enemies.removeAll(reachedPlayer);
@@ -177,53 +171,18 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
         if (player.hp <= 0) {
             updateHighScore();
             state = GameState.GAME_OVER;
+            SoundManager.gameOver();
         }
     }
 
-    /** Find the enemy closest to the player center. */
-    private Enemy getNearestEnemy() {
-        Enemy nearest  = null;
-        float minDist  = Float.MAX_VALUE;
-        for (Enemy e : enemies) {
-            float dx   = e.getCenterX() - player.getCenterX();
-            float dy   = e.getCenterY() - player.getCenterY();
-            float dist = (float) Math.sqrt(dx * dx + dy * dy);
-            if (dist < minDist) { minDist = dist; nearest = e; }
-        }
-        return nearest;
-    }
-
-    /** Fire one bullet (or three if multishot is active) toward the target. */
-    private void fireAt(Enemy target) {
-        float dx  = target.getCenterX() - player.getCenterX();
-        float dy  = target.getCenterY() - player.getCenterY();
-        float len = (float) Math.sqrt(dx * dx + dy * dy);
-        float nx  = dx / len;
-        float ny  = dy / len;
-
-        bullets.add(new Bullet(player.getCenterX(), player.getCenterY(), nx, ny, player.damage));
-
-        if (player.multishot) {
-            float angle = 0.28f;
-            // Left spread
-            float cosA = (float) Math.cos(angle),  sinA = (float) Math.sin(angle);
-            bullets.add(new Bullet(player.getCenterX(), player.getCenterY(),
-                    nx * cosA - ny * sinA, nx * sinA + ny * cosA, player.damage));
-            // Right spread
-            float cosB = (float) Math.cos(-angle), sinB = (float) Math.sin(-angle);
-            bullets.add(new Bullet(player.getCenterX(), player.getCenterY(),
-                    nx * cosB - ny * sinB, nx * sinB + ny * cosB, player.damage));
-        }
-    }
-
-    /** Fire one bullet (or three if multishot is active) toward the mouse position. */
-    private void fireAtMouse() {
+    /** Fire bullet(s) toward the current mouse cursor position. */
+    private void fireTowardMouse() {
         float dx  = mouseX - player.getCenterX();
         float dy  = mouseY - player.getCenterY();
         float len = (float) Math.sqrt(dx * dx + dy * dy);
-        if (len == 0) return;  // Don't shoot if mouse is at player center
-        float nx  = dx / len;
-        float ny  = dy / len;
+        if (len == 0) return;
+        float nx = dx / len;
+        float ny = dy / len;
 
         bullets.add(new Bullet(player.getCenterX(), player.getCenterY(), nx, ny, player.damage));
 
@@ -265,7 +224,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
         String chosen = upgradeOptions[index];
 
         if      (chosen.startsWith("HEAL"))   player.hp = Math.min(player.maxHp, player.hp + 2);
-        else if (chosen.startsWith("HP UP"))  { player.maxHp += 2; player.hp = Math.min(player.maxHp, player.hp + 1); }
+        else if (chosen.startsWith("HP UP"))  { player.maxHp += 2; player.hp = player.maxHp; }
         else if (chosen.startsWith("SWIFT"))  player.speed += 0.8f;
         else if (chosen.startsWith("POWER"))  player.damage += 1;
         else if (chosen.startsWith("RAPID"))  player.fireRateTicks = Math.max(8, player.fireRateTicks - 6);
@@ -274,6 +233,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
         waveManager.nextWave();
         waveAnnounceTicks = 120;
         state = GameState.PLAYING;
+        SoundManager.waveStart();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -331,7 +291,8 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
         g.setColor(Color.LIGHT_GRAY);
         String[] lines = {
             "Move:  W A S D  or  Arrow Keys",
-            "Aim & Shoot:  LEFT CLICK",
+            "Aim:   Mouse Cursor",
+            "Shoot: Hold Left Mouse Button",
             "",
             "Survive endless waves of enemies.",
             "Choose upgrades between waves.",
@@ -371,7 +332,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
         // Draw entities
         for (Bullet b : bullets) b.draw(g);
         for (Enemy  e : enemies) e.draw(g);
-        player.draw(g);
+        // Calculate angle from player center to mouse (offset by -PI/2 so helmet faces up by default)
+        double aimAngle = Math.atan2(mouseY - player.getCenterY(), mouseX - player.getCenterX()) + Math.PI / 2;
+        player.draw(g, aimAngle);
 
         // HUD overlay
         drawHUD(g);
@@ -609,27 +572,18 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener {
     public void keyTyped(KeyEvent e) { /* not used */ }
 
     // ─────────────────────────────────────────────────────────────
-    //  Mouse Listener
+    //  Mouse Input Handling
     // ─────────────────────────────────────────────────────────────
 
-    @Override
-    public void mousePressed(MouseEvent e) {
-        if (state == GameState.PLAYING) {
-            mousePressed = true;
-        }
+    @Override public void mousePressed(MouseEvent e) {
+        if (e.getButton() == MouseEvent.BUTTON1) mouseDown = true;
     }
-
-    @Override
-    public void mouseReleased(MouseEvent e) {
-        mousePressed = false;
+    @Override public void mouseReleased(MouseEvent e) {
+        if (e.getButton() == MouseEvent.BUTTON1) mouseDown = false;
     }
-
-    @Override
-    public void mouseClicked(MouseEvent e) { /* not used */ }
-
-    @Override
-    public void mouseEntered(MouseEvent e) { /* not used */ }
-
-    @Override
-    public void mouseExited(MouseEvent e) { /* not used */ }
+    @Override public void mouseMoved(MouseEvent e)   { mouseX = e.getX(); mouseY = e.getY(); }
+    @Override public void mouseDragged(MouseEvent e) { mouseX = e.getX(); mouseY = e.getY(); }
+    @Override public void mouseClicked(MouseEvent e) {}
+    @Override public void mouseEntered(MouseEvent e) {}
+    @Override public void mouseExited(MouseEvent e)  {}
 }
