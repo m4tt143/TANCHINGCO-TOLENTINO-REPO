@@ -74,26 +74,43 @@ public class Player {
         g.rotate(aimAngle, cx, cy);
 
         // Drop shadow
-        g.setColor(new Color(0, 0, 0, 70));
-        g.fillOval(px + 3, py + 3, SIZE, SIZE);
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fillOval(px + 1, py + 26, SIZE - 2, 6);
 
-        // Body (blue)
-        g.setColor(new Color(40, 110, 220));
-        g.fillOval(px, py, SIZE, SIZE);
+        // Legs (khaki/tan)
+        g.setColor(new Color(210, 180, 140));
+        g.fillRect(px + 7, py + 20, 5, 10);
+        g.fillRect(px + 20, py + 20, 5, 10);
 
-        // Helmet (darker blue — top half points in aim direction)
-        g.setColor(new Color(20, 70, 160));
-        g.fillArc(px + 4, py, SIZE - 8, SIZE / 2 + 4, 0, 180);
+        // Body/Armor (military green with darker panels)
+        g.setColor(new Color(85, 120, 70));
+        g.fillRect(px + 3, py + 10, SIZE - 6, 13);
 
-        // Eyes (white)
-        g.setColor(Color.WHITE);
-        g.fillOval(px + 6,  py + 14, 7, 6);
-        g.fillOval(px + 19, py + 14, 7, 6);
+        // Chest armor stripe (darker)
+        g.setColor(new Color(60, 90, 50));
+        g.fillRect(px + 12, py + 10, 8, 13);
 
-        // Pupils (black)
-        g.setColor(Color.BLACK);
-        g.fillOval(px + 8,  py + 15, 3, 3);
-        g.fillOval(px + 21, py + 15, 3, 3);
+        // Arms (green)
+        g.setColor(new Color(100, 140, 85));
+        g.fillRect(px + 2, py + 12, 3, 8);
+        g.fillRect(px + 27, py + 12, 3, 8);
+
+        // Helmet (dark with visor)
+        g.setColor(new Color(50, 50, 50));
+        g.fillOval(px + 5, py + 2, SIZE - 10, 10);
+
+        // Helmet visor (reflective)
+        g.setColor(new Color(100, 140, 160));
+        g.fillRect(px + 7, py + 3, SIZE - 14, 6);
+
+        // Eyes through visor
+        g.setColor(new Color(220, 220, 100));
+        g.fillOval(px + 8,  py + 5, 3, 3);
+        g.fillOval(px + 21, py + 5, 3, 3);
+
+        // Gun barrel (pointing forward)
+        g.setColor(new Color(40, 40, 40));
+        g.fillRect(px + 14, py - 3, 4, 6);
 
         // Restore transform so the star badge stays upright in world space
         g.setTransform(old);
