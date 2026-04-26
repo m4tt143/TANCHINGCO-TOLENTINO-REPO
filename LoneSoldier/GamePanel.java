@@ -105,15 +105,6 @@ public class GamePanel extends JPanel implements KeyListener {
         // Update player
         player.update();
 
-        // Auto-shoot: target nearest enemy
-        if (player.canShoot() && !enemies.isEmpty()) {
-            Enemy target = getNearestEnemy();
-            if (target != null) {
-                fireAt(target);
-                player.resetCooldown();
-            }
-        }
-
         // Update bullets; remove off-screen ones
         List<Bullet> deadBullets  = new ArrayList<>();
         List<Enemy>  deadEnemies  = new ArrayList<>();
