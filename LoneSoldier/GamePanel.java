@@ -106,6 +106,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             updateHighScore();
             prepareUpgrades();
             state = GameState.UPGRADE;
+            SoundManager.waveClear();
             return;
         }
 
@@ -116,6 +117,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         if (mouseDown && player.canShoot()) {
             fireTowardMouse();
             player.resetCooldown();
+            SoundManager.shoot();
         }
 
         // Update bullets; remove off-screen ones
@@ -137,6 +139,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                     if (e.hp <= 0) {
                         deadEnemies.add(e);
                         score++;
+                        SoundManager.enemyDie();
+                    } else {
+                        SoundManager.enemyHit();
                     }
                     break;
                 }
@@ -154,6 +159,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                 player.takeDamage(1);
                 reachedPlayer.add(e);
                 damageFlashTicks = 12;
+                SoundManager.playerHit();
             }
         }
         enemies.removeAll(reachedPlayer);
@@ -165,6 +171,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         if (player.hp <= 0) {
             updateHighScore();
             state = GameState.GAME_OVER;
+            SoundManager.gameOver();
         }
     }
 
@@ -226,6 +233,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         waveManager.nextWave();
         waveAnnounceTicks = 120;
         state = GameState.PLAYING;
+        SoundManager.waveStart();
     }
 
     // ─────────────────────────────────────────────────────────────
