@@ -217,7 +217,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         String chosen = upgradeOptions[index];
 
         if      (chosen.startsWith("HEAL"))   player.hp = Math.min(player.maxHp, player.hp + 2);
-        else if (chosen.startsWith("HP UP"))  { player.maxHp += 2; player.hp = Math.min(player.maxHp, player.hp + 1); }
+        else if (chosen.startsWith("HP UP"))  { player.maxHp += 2; player.hp = player.maxHp; }
         else if (chosen.startsWith("SWIFT"))  player.speed += 0.8f;
         else if (chosen.startsWith("POWER"))  player.damage += 1;
         else if (chosen.startsWith("RAPID"))  player.fireRateTicks = Math.max(8, player.fireRateTicks - 6);
