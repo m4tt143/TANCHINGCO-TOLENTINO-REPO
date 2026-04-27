@@ -459,6 +459,19 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         g.setColor(chrColor); String name=chr.toString();
         g.drawString(name,x+(w-fm.stringWidth(name))/2,y+40);
         
+        // Character image (after name)
+        if (characterImages.containsKey(chr)) {
+            BufferedImage img = characterImages.get(chr);
+            int imgW = 120, imgH = 130;  // Larger image for bigger card
+            int imgX = x + (w - imgW) / 2;
+            int imgY = y + 50;
+            
+            // High-quality scaling
+            Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g2d.drawImage(img, imgX, imgY, imgW, imgH, null);
+        }
+        
         // Stats
         String[] stats = switch(chr) {
             case SOLDIER -> new String[]{"HP: 5", "DMG: 1", "SPD: 3.0"};
@@ -470,7 +483,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         g.setFont(new Font("Monospaced",Font.PLAIN,12));
         g.setColor(new Color(130,170,140));
         for (int i=0; i<stats.length; i++) {
-            g.drawString(stats[i],x+12,y+68+i*18);
+            g.drawString(stats[i],x+12,y+190+i*18);
         }
         
         // Super power
@@ -482,29 +495,16 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         };
         g.setFont(new Font("Monospaced",Font.BOLD,10));
         g.setColor(chrColor);
-        g.drawString("SUPER:", x+12, y+68+stats.length*18+8);
+        g.drawString("SUPER:", x+12, y+190+stats.length*18+8);
         g.setFont(new Font("Monospaced",Font.PLAIN,10));
         g.setColor(new Color(180,200,160));
-        g.drawString(superDesc, x+12, y+68+stats.length*18+20);
+        g.drawString(superDesc, x+12, y+190+stats.length*18+20);
         
-        // Character image (bottom center)
-        if (characterImages.containsKey(chr)) {
-            BufferedImage img = characterImages.get(chr);
-            int imgW = 120, imgH = 130;  // Larger image for bigger card
-            int imgX = x + (w - imgW) / 2;
-            int imgY = y + h - imgH - 38;
-            
-            // High-quality scaling
-            Graphics2D g2d = (Graphics2D) g;
-            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            g2d.drawImage(img, imgX, imgY, imgW, imgH, null);
-        }
-        
-        // Key badge
-        g.setColor(new Color(30,110,50,35)); g.fillRoundRect(x+w/2-22,y+h-30,44,22,6,6);
+        // Key badge (top center)
+        g.setColor(new Color(30,110,50,35)); g.fillRoundRect(x+w/2-22,y+10,44,22,6,6);
         g.setFont(new Font("Monospaced",Font.BOLD,14)); fm=g.getFontMetrics();
         g.setColor(new Color(60,160,80));
-        String badge="["+key+"]"; g.drawString(badge,x+(w-fm.stringWidth(badge))/2,y+h-12);
+        String badge="["+key+"]"; g.drawString(badge,x+(w-fm.stringWidth(badge))/2,y+28);
     }
     
     // ── SHOP ──
