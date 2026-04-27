@@ -14,6 +14,9 @@ import java.util.concurrent.Executors;
  *   waveClear()    — ascending fanfare when a wave is cleared
  *   waveStart()    — tense alert tone at wave start
  *   gameOver()     — low dramatic drone on death
+ *   levelUp()      — triumphant ascending notes for level gain
+ *   dashAbility()  — quick whoosh sound for dash ability
+ *   upgradeSelect()— clean beep for upgrade selection
  */
 public class SoundManager {
 
@@ -35,6 +38,9 @@ public class SoundManager {
     public static void waveClear()  { pool.execute(() -> playWaveClear()); }
     public static void waveStart()  { pool.execute(() -> playWaveStart()); }
     public static void gameOver()   { pool.execute(() -> playGameOver()); }
+    public static void levelUp()    { pool.execute(() -> playLevelUp()); }
+    public static void dashAbility(){ pool.execute(() -> playDashAbility()); }
+    public static void upgradeSelect(){pool.execute(()-> playUpgradeSelect());}
 
     // ── Sound Synthesis ──────────────────────────────────────────
 
@@ -152,6 +158,56 @@ public class SoundManager {
             buf[i] = clamp((tone + sub) * env * 120);
         }
         play(buf, 0.8f);
+    }
+
+    /** Triumphant ascending 4-note fanfare — level up! */
+    private static void playLevelUp() {
+        double[] notes = { 523.25, 659.25, 783.99, 1046.50 }; // C5, E5, G5, C6
+        int noteDur = (int)(SAMPLE_RATE * 0.12f);
+        int total   = noteDur * notes.length;
+        byte[] buf  = new byte[total];
+        for (int n = 0; n < notes.length; n++) {
+            for (int i = 0; i < noteDur; i++) {
+                double t    = i / SAMPLE_RATE;
+                double tone = Math.sin(2 * Math.PI * notes[n] * t);
+                double harm = Math.sin(2 * Math.PI * notes[n] * 2 * t) * 0.2;
+                double harm2= Math.sin(2 * Math.PI * notes[n] * 3 * t) * 0.1;
+                double env  = Math.exp(-t * 5) * (1 - Math.exp(-t * 100));
+                buf[n * noteDur + i] = clamp((tone + harm + harm2) * env * 105);
+            }
+        }
+        play(buf, 0.65f);
+    }
+
+    /** Quick whoosh — dash ability activated */
+    private static void playDashAbility() {
+        int frames = (int)(SAMPLE_RATE * 0.14f);
+        byte[] buf = new byte[frames];
+        for (int i = 0; i < frames; i++) {
+            double t    = i / SAMPLE_RATE;
+            // Pitch rises quickly
+            double freq = 400 + t * 2000;
+            double tone = Math.sin(2 * Math.PI * freq * t);
+            // Add noise for whoosh effect
+            double noise = (Math.random() * 2 - 1) * 0.4;
+            double env   = Math.exp(-t * 20);
+            buf[i] = clamp((tone * 0.6 + noise * 0.4) * env * 100);
+        }
+        play(buf, 0.5f);
+    }
+
+    /** Clean beep — upgrade card selected */
+    private static void playUpgradeSelect() {
+        int frames = (int)(SAMPLE_RATE * 0.08f);
+        byte[] buf = new byte[frames];
+        for (int i = 0; i < frames; i++) {
+            double t    = i / SAMPLE_RATE;
+            double tone = Math.sin(2 * Math.PI * 800 * t);
+            double harm = Math.sin(2 * Math.PI * 1600 * t) * 0.3;
+            double env  = Math.exp(-t * 30);
+            buf[i] = clamp((tone + harm) * env * 95);
+        }
+        play(buf, 0.4f);
     }
 
     // ── Playback Utility ─────────────────────────────────────────
