@@ -44,13 +44,13 @@ public class Enemy {
     }
 
     /** Move straight toward the player every tick */
-    public void update(float targetX, float targetY) {
+    public void update(float targetX, float targetY, float moveSpeed) {
         float dx   = targetX - getCenterX();
         float dy   = targetY - getCenterY();
         float dist = (float) Math.sqrt(dx * dx + dy * dy);
         if (dist > 0) {
-            x += (dx / dist) * speed;
-            y += (dy / dist) * speed;
+            x += (dx / dist) * moveSpeed;
+            y += (dy / dist) * moveSpeed;
         }
     }
 

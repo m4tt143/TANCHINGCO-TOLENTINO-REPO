@@ -229,8 +229,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         List<Enemy> hitPlayer = new ArrayList<>();
         for (Enemy e : enemies) {
             float effectiveSpeed = e.speed * (1f - player.enemySlowPercent);
-            e.speed = effectiveSpeed;
-            e.update(player.getCenterX(), player.getCenterY());
+            e.update(player.getCenterX(), player.getCenterY(), effectiveSpeed);
             if (e.getBounds().intersects(player.getBounds())) {
                 player.takeDamage(e.elite ? 2 : 1);
                 hitPlayer.add(e);
