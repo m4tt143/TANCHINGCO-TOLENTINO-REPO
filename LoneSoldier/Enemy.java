@@ -65,34 +65,50 @@ public class Enemy {
         int ey = (int) y;
 
         // Drop shadow
-        g.setColor(new Color(0, 0, 0, 60));
-        g.fillOval(ex + 2, ey + 2, SIZE, SIZE);
+        g.setColor(new Color(0, 0, 0, 80));
+        g.fillOval(ex + 1, ey + 20, SIZE - 2, 5);
 
-        // Body
+        // Legs (dark red/maroon)
+        g.setColor(new Color(140, 30, 30));
+        g.fillRect(ex + 6, ey + 17, 4, 8);
+        g.fillRect(ex + 16, ey + 17, 4, 8);
+
+        // Body/Armor (blood red)
         g.setColor(bodyColor);
-        g.fillOval(ex, ey, SIZE, SIZE);
+        g.fillRect(ex + 3, ey + 9, SIZE - 6, 11);
 
-        // Helmet
+        // Chest plate (darker red)
+        g.setColor(new Color(Math.max(0, bodyColor.getRed() - 40), 
+                             Math.max(0, bodyColor.getGreen() - 20),
+                             Math.max(0, bodyColor.getBlue() - 20)));
+        g.fillRect(ex + 11, ey + 9, 4, 11);
+
+        // Arms (reddish)
+        g.setColor(new Color(180, 40, 40));
+        g.fillRect(ex + 2, ey + 10, 2, 7);
+        g.fillRect(ex + 22, ey + 10, 2, 7);
+
+        // Helmet (dark with red tint)
         g.setColor(helmetColor);
-        g.fillArc(ex + 3, ey, SIZE - 6, SIZE / 2 + 3, 0, 180);
+        g.fillOval(ex + 4, ey + 1, SIZE - 8, 10);
 
-        // Eyes
-        g.setColor(Color.WHITE);
-        g.fillOval(ex + 5,  ey + 11, 5, 5);
-        g.fillOval(ex + 15, ey + 11, 5, 5);
+        // Eyes (angry red glow)
+        g.setColor(new Color(255, 150, 150));
+        g.fillOval(ex + 6,  ey + 4, 3, 3);
+        g.fillOval(ex + 17, ey + 4, 3, 3);
 
-        // Red angry eyes
-        g.setColor(new Color(220, 0, 0));
-        g.fillOval(ex + 6,  ey + 12, 3, 3);
-        g.fillOval(ex + 16, ey + 12, 3, 3);
+        // Angry pupils (dark)
+        g.setColor(new Color(40, 0, 0));
+        g.fillOval(ex + 7,  ey + 5, 2, 2);
+        g.fillOval(ex + 18, ey + 5, 2, 2);
 
         // HP bar (visible only when damaged)
         if (hp < maxHp) {
-            g.setColor(new Color(80, 0, 0));
-            g.fillRect(ex, ey - 6, SIZE, 4);
+            g.setColor(new Color(50, 0, 0));
+            g.fillRect(ex, ey - 7, SIZE, 3);
             float ratio = (float) hp / maxHp;
-            g.setColor(new Color(200, 40, 40));
-            g.fillRect(ex, ey - 6, (int) (SIZE * ratio), 4);
+            g.setColor(new Color(255, 100, 100));
+            g.fillRect(ex, ey - 7, (int) (SIZE * ratio), 3);
         }
     }
 }
