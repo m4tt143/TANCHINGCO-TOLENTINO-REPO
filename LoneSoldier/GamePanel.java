@@ -1,6 +1,9 @@
 import javax.swing.*;
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,6 +23,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private List<Enemy>  enemies;
     private List<Bullet> bullets;
     private WaveManager  waveManager;
+    
+    // ── Character Images ──────────────────────────────────────────
+    private static final java.util.Map<Player.CharacterType, BufferedImage> characterImages = new java.util.HashMap<>();
     
     // ── Character & Shop ─────────────────────────────────────────
     private Player.CharacterType selectedCharacter = Player.CharacterType.SOLDIER;
@@ -73,12 +79,46 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         addKeyListener(this);
         addMouseListener(this);
         addMouseMotionListener(this);
+        loadCharacterImages();
         initObjects();
         gameTimer = new Timer(1000/FPS, e -> { update(); repaint(); });
         gameTimer.start();
     }
 
     // ── Init ─────────────────────────────────────────────────────
+
+    private void loadCharacterImages() {
+        String[] characters = {"SOLDIER", "MAGE", "TANK", "ROGUE"};
+        Player.CharacterType[] types = Player.CharacterType.values();
+        
+        // Try multiple path locations
+        String[] pathAttempts = {
+            "assets/images/",
+            "LoneSoldier/assets/images/",
+            "./assets/images/"
+        };
+        
+        for (int i = 0; i < characters.length && i < types.length; i++) {
+            boolean loaded = false;
+            for (String pathBase : pathAttempts) {
+                try {
+                    File imgFile = new File(pathBase + characters[i] + ".png");
+                    if (imgFile.exists()) {
+                        BufferedImage img = ImageIO.read(imgFile);
+                        characterImages.put(types[i], img);
+                        System.out.println("✓ Loaded " + characters[i] + " from: " + imgFile.getAbsolutePath());
+                        loaded = true;
+                        break;
+                    }
+                } catch (Exception e) {
+                    // Try next path
+                }
+            }
+            if (!loaded) {
+                System.out.println("✗ Could not load image for " + characters[i]);
+            }
+        }
+    }
 
     private void initObjects() {
         float cx = GameFrame.WIDTH/2f - Player.SIZE/2f;
@@ -329,7 +369,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         
         // Character cards
         Player.CharacterType[] chars = Player.CharacterType.values();
-        int cardW=140, cardH=180, totalW=cardW*4+60, startX=(GameFrame.WIDTH-totalW)/2, cardY=120;
+        int cardW=200, cardH=280, totalW=cardW*4+60, startX=(GameFrame.WIDTH-totalW)/2, cardY=100;
         
         for (int i=0; i<chars.length; i++) {
             int cx = startX + i*(cardW+20);
@@ -356,10 +396,10 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         };
         
         // Character name
-        g.setFont(new Font("Monospaced",Font.BOLD,16)); 
+        g.setFont(new Font("Monospaced",Font.BOLD,18)); 
         FontMetrics fm=g.getFontMetrics();
         g.setColor(chrColor); String name=chr.toString();
-        g.drawString(name,x+(w-fm.stringWidth(name))/2,y+35);
+        g.drawString(name,x+(w-fm.stringWidth(name))/2,y+40);
         
         // Stats
         String[] stats = switch(chr) {
@@ -369,14 +409,27 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             case ROGUE -> new String[]{"HP: 4", "DMG: 1", "SPD: 4.0"};
         };
         
-        g.setFont(new Font("Monospaced",Font.PLAIN,11));
+        g.setFont(new Font("Monospaced",Font.PLAIN,12));
         g.setColor(new Color(130,170,140));
         for (int i=0; i<stats.length; i++) {
-            g.drawString(stats[i],x+10,y+60+i*18);
+            g.drawString(stats[i],x+12,y+68+i*18);
+        }
+        
+        // Character image (bottom center)
+        if (characterImages.containsKey(chr)) {
+            BufferedImage img = characterImages.get(chr);
+            int imgW = 120, imgH = 130;  // Larger image for bigger card
+            int imgX = x + (w - imgW) / 2;
+            int imgY = y + h - imgH - 38;
+            
+            // High-quality scaling
+            Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g2d.drawImage(img, imgX, imgY, imgW, imgH, null);
         }
         
         // Key badge
-        g.setColor(new Color(30,110,50,35)); g.fillRoundRect(x+w/2-20,y+h-28,40,20,6,6);
+        g.setColor(new Color(30,110,50,35)); g.fillRoundRect(x+w/2-22,y+h-30,44,22,6,6);
         g.setFont(new Font("Monospaced",Font.BOLD,14)); fm=g.getFontMetrics();
         g.setColor(new Color(60,160,80));
         String badge="["+key+"]"; g.drawString(badge,x+(w-fm.stringWidth(badge))/2,y+h-12);
@@ -967,7 +1020,7 @@ private void drawMenu(Graphics2D g) {
         // Character select click
         if(state==GameState.CHARACTER_SELECT&&e.getButton()==MouseEvent.BUTTON1) {
             Player.CharacterType[] chars = Player.CharacterType.values();
-            int cardW=140, cardH=180, totalW=cardW*4+60, startX=(GameFrame.WIDTH-totalW)/2, cardY=120;
+            int cardW=200, cardH=280, totalW=cardW*4+60, startX=(GameFrame.WIDTH-totalW)/2, cardY=100;
             for (int i=0; i<chars.length; i++) {
                 int cx = startX + i*(cardW+20);
                 if(e.getX()>=cx&&e.getX()<=cx+cardW&&e.getY()>=cardY&&e.getY()<=cardY+cardH) {
