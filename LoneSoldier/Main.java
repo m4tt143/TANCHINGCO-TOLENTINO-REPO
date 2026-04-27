@@ -1,7 +1,7 @@
 import javax.swing.SwingUtilities;
 
 /**
- * LONE SOLDIER: Last Stand
+ * LAST OUTPOST: Last Stand
  * Survival Defense Game
  *
  * By: Tolentino & Tanchingco

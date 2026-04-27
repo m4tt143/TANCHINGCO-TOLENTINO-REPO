@@ -1,4 +1,4 @@
-# LONE SOLDIER: Last Stand
+# LAST OUTPOST: Last Stand
 ### Programming 2 Finals Project — UPHSD Molino, CCS
 **Group 20:** Tolentino & Tanchico
 
@@ -6,7 +6,7 @@
 
 ## Game Description
 
-**LONE SOLDIER: Last Stand** is a **Survival Defense** game built in Java (Swing/AWT).
+**LAST OUTPOST: Last Stand** is a **Survival Defense** game built in Java (Swing/AWT).
 
 You are a single soldier trapped in an open battlefield. Waves of enemy soldiers swarm toward you from all sides. You must survive as long as possible — moving to dodge, while your character auto-aims and auto-shoots at the nearest threat. After clearing each wave, choose one upgrade to improve your soldier.
 

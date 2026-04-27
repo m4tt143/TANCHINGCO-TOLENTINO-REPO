@@ -7,7 +7,7 @@ public class GameFrame extends JFrame {
 
     public static final int WIDTH  = 800;
     public static final int HEIGHT = 600;
-    public static final String TITLE = "LONE SOLDIER: Last Stand";
+    public static final String TITLE = "LAST OUTPOST: Last Stand";
 
     public GameFrame() {
         GamePanel gamePanel = new GamePanel();

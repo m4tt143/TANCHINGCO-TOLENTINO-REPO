@@ -552,7 +552,7 @@ private void drawMenu(Graphics2D g) {
     // Title
     g.setFont(new Font("Monospaced", Font.BOLD, 54));
     FontMetrics fm = g.getFontMetrics();
-    String line1 = "LONE SOLDIER";
+    String line1 = "LAST OUTPOST";
     int tx = (W - fm.stringWidth(line1)) / 2;
     g.setColor(new Color(0, 80, 30, 80));
     g.drawString(line1, tx + 4, 124);
@@ -660,7 +660,7 @@ private void drawMenu(Graphics2D g) {
         for (Bullet b : bullets) b.draw(g);
         for (Enemy  e : enemies) e.draw(g);
         double aim=Math.atan2(mouseY-player.getCenterY(),mouseX-player.getCenterX())+Math.PI/2;
-        player.draw(g,aim);
+        player.draw(g,aim,characterImages);
 
         // Floating texts
         g.setFont(new Font("Monospaced",Font.BOLD,13));

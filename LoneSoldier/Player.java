@@ -13,7 +13,7 @@ public class Player {
 
     // Position & Size
     public float x, y;
-    public static final int SIZE = 32;
+    public static final int SIZE = 64;
 
     // Stats
     public int hp, maxHp;
@@ -148,47 +148,24 @@ public class Player {
 
     /** Draw the player rotated to face the mouse cursor.
      *  aimAngle is in radians; 0 = facing up, increases clockwise. */
-    public void draw(Graphics2D g, double aimAngle) {
+    public void draw(Graphics2D g, double aimAngle, java.util.Map<CharacterType, java.awt.image.BufferedImage> characterImages) {
         int px = (int) x;
         int py = (int) y;
         float cx = getCenterX();
         float cy = getCenterY();
 
-        // Save transform, rotate around player center toward mouse
+        // Draw character image first (before any rotation)
+        if (characterImages != null && characterImages.containsKey(character)) {
+            java.awt.image.BufferedImage img = characterImages.get(character);
+            // High-quality scaling for gameplay
+            Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g2d.drawImage(img, px, py, SIZE, SIZE, null);
+        }
+
+        // Save transform, rotate around player center for dash effect only
         java.awt.geom.AffineTransform old = g.getTransform();
         g.rotate(aimAngle, cx, cy);
-
-        // Drop shadow
-        g.setColor(new Color(0, 0, 0, 70));
-        g.fillOval(px + 3, py + 3, SIZE, SIZE);
-
-        // Body color by character
-        Color bodyColor = switch(character) {
-            case SOLDIER -> new Color(40, 110, 220);   // Blue
-            case MAGE -> new Color(150, 80, 220);      // Purple
-            case TANK -> new Color(220, 150, 40);      // Orange
-            case ROGUE -> new Color(100, 200, 80);     // Green
-        };
-        
-        g.setColor(bodyColor);
-        g.fillOval(px, py, SIZE, SIZE);
-
-        // Helmet (darker shade — top half points in aim direction)
-        g.setColor(bodyColor.darker());
-        g.fillArc(px + 4, py, SIZE - 8, SIZE / 2 + 4, 0, 180);
-
-        // Eyes (white)
-        g.setColor(Color.WHITE);
-        g.fillOval(px + 6,  py + 14, 7, 6);
-        g.fillOval(px + 19, py + 14, 7, 6);
-
-        // Pupils (dark)
-        g.setColor(Color.BLACK);
-        g.fillOval(px + 8,  py + 15, 3, 3);
-        g.fillOval(px + 21, py + 15, 3, 3);
-
-        // Restore transform so the star badge stays upright in world space
-        g.setTransform(old);
 
         // DASH visual effect (cyan aura during dash)
         if (isDashing()) {
@@ -200,10 +177,7 @@ public class Player {
             g.setStroke(new BasicStroke(1));
         }
 
-        // Character badge
-        g.setFont(new Font("Arial", Font.BOLD, 11));
-        String badge = character.toString().substring(0, 1);
-        g.setColor(new Color(255, 215, 0));
-        g.drawString(badge, px + SIZE / 2 - 4, py - 3);
+        // Restore transform
+        g.setTransform(old);
     }
 }
