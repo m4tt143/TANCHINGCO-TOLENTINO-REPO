@@ -38,6 +38,13 @@ public class Player {
     public static final int DASH_COOLDOWN_MAX = 180; // 3 seconds at 60 FPS
     public static final int DASH_DURATION_MAX = 15;  // 0.25 seconds
 
+    // SUPER POWER ability (E key)
+    public int superCooldown = 0;          // Cooldown counter
+    public int superDuration = 0;          // How long super power lasts
+    public boolean superActive = false;    // Is super power currently active
+    public static final int SUPER_COOLDOWN_MAX = 300; // 5 seconds at 60 FPS
+    public static final int SUPER_DURATION_MAX = 90;  // 1.5 seconds at 60 FPS
+
     // Movement flags (set by KeyListener)
     public boolean up, down, left, right;
 
@@ -85,10 +92,11 @@ public class Player {
     public void update() {
         // Normal movement
         float moveX = 0, moveY = 0;
-        if (up)    moveY -= speed;
-        if (down)  moveY += speed;
-        if (left)  moveX -= speed;
-        if (right) moveX += speed;
+        float effectiveSpeed = getEffectiveSpeed();
+        if (up)    moveY -= effectiveSpeed;
+        if (down)  moveY += effectiveSpeed;
+        if (left)  moveX -= effectiveSpeed;
+        if (right) moveX += effectiveSpeed;
         
         // Apply dash velocity (invincible frames during dash)
         if (dashDuration > 0) {
@@ -108,6 +116,13 @@ public class Player {
         // Tick cooldowns
         if (fireCooldown > 0) fireCooldown--;
         if (dashCooldown > 0) dashCooldown--;
+        if (superCooldown > 0) superCooldown--;
+        if (superDuration > 0) {
+            superDuration--;
+            if (superDuration <= 0) {
+                superActive = false;
+            }
+        }
     }
     
     /** Activate dash in the direction of current movement */
@@ -127,17 +142,72 @@ public class Player {
         dirX /= len; dirY /= len;
         
         // Set dash velocity (fast burst)
-        dashVx = dirX * 12f;
-        dashVy = dirY * 12f;
+        float effectiveSpeed = getEffectiveSpeed();
+        dashVx = dirX * 12f * (effectiveSpeed / speed); // Scale dash speed by speed multiplier
+        dashVy = dirY * 12f * (effectiveSpeed / speed);
         dashDuration = DASH_DURATION_MAX;
         dashCooldown = DASH_COOLDOWN_MAX;
         return true;
     }
     
+    /** Activate super power based on character type */
+    public boolean trySuperPower() {
+        if (superCooldown > 0 || superActive) return false; // Still on cooldown or already active
+        
+        superActive = true;
+        superDuration = SUPER_DURATION_MAX;
+        superCooldown = SUPER_COOLDOWN_MAX;
+        
+        // Character-specific super power effects are handled in the getters
+        return true;
+    }
+    
     public boolean isDashing() { return dashDuration > 0; }
     public boolean canShoot()    { return fireCooldown <= 0; }
-    public void   resetCooldown() { fireCooldown = fireRateTicks; }
-    public void   takeDamage(int dmg) { if(armor>0){armor=Math.max(0,armor-dmg);return;} hp = Math.max(0, hp - dmg); }
+    public void   resetCooldown() { fireCooldown = getEffectiveFireRateTicks(); }
+    
+    /** Get the effective fire rate ticks, modified by super powers */
+    public int getEffectiveFireRateTicks() {
+        if (superActive) {
+            switch (character) {
+                case SOLDIER -> { return Math.max(5, fireRateTicks / 3); } // 3x faster for soldier
+                default -> { return fireRateTicks; }
+            }
+        }
+        return fireRateTicks;
+    }
+    
+    /** Get the effective damage, modified by super powers */
+    public int getEffectiveDamage() {
+        if (superActive) {
+            switch (character) {
+                case MAGE -> { return damage * 2; } // Double damage for mage
+                default -> { return damage; }
+            }
+        }
+        return damage;
+    }
+    
+    /** Get the effective speed, modified by super powers */
+    public float getEffectiveSpeed() {
+        if (superActive) {
+            switch (character) {
+                case ROGUE -> { return speed * 2.0f; } // Double speed for rogue
+                default -> { return speed; }
+            }
+        }
+        return speed;
+    }
+    
+    /** Check if player is invincible due to super power */
+    public boolean isSuperInvincible() {
+        return superActive && character == CharacterType.TANK;
+    }
+    public void   takeDamage(int dmg) { 
+        if (isSuperInvincible()) return; // Tank super power: temporary invincibility
+        if(armor>0){armor=Math.max(0,armor-dmg);return;} 
+        hp = Math.max(0, hp - dmg); 
+    }
 
     public float getCenterX() { return x + SIZE / 2f; }
     public float getCenterY() { return y + SIZE / 2f; }
@@ -192,6 +262,24 @@ public class Player {
             g.setStroke(new BasicStroke(2.5f));
             int glowSize = (int)(SIZE * (1f + 0.3f * (1f - dashAlpha)));
             g.drawOval(px - glowSize/2 + SIZE/2, py - glowSize/2 + SIZE/2, glowSize, glowSize);
+            g.setStroke(new BasicStroke(1));
+        }
+
+        // SUPER POWER visual effects
+        if (superActive) {
+            float superAlpha = (float) superDuration / SUPER_DURATION_MAX;
+            Color superColor;
+            switch (character) {
+                case SOLDIER -> superColor = new Color(255, 255, 0, (int)(superAlpha * 150)); // Yellow for attack speed
+                case MAGE -> superColor = new Color(255, 0, 255, (int)(superAlpha * 150)); // Magenta for damage
+                case TANK -> superColor = new Color(0, 255, 0, (int)(superAlpha * 150)); // Green for invincibility
+                case ROGUE -> superColor = new Color(255, 165, 0, (int)(superAlpha * 150)); // Orange for speed
+                default -> superColor = new Color(255, 255, 255, (int)(superAlpha * 150));
+            }
+            g.setColor(superColor);
+            g.setStroke(new BasicStroke(3.0f));
+            int superGlowSize = (int)(SIZE * (1f + 0.5f * superAlpha));
+            g.drawOval(px - superGlowSize/2 + SIZE/2, py - superGlowSize/2 + SIZE/2, superGlowSize, superGlowSize);
             g.setStroke(new BasicStroke(1));
         }
 

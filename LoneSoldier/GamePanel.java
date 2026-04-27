@@ -297,7 +297,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         float len=(float)Math.sqrt(dx*dx+dy*dy); if(len==0)return;
         float nx=dx/len, ny=dy/len;
         
-        int baseDamage = player.damage;
+        int baseDamage = player.getEffectiveDamage();
         if (Math.random() < player.critChance) baseDamage += 2;
         
         bullets.add(new Bullet(player.getCenterX(),player.getCenterY(),nx,ny,baseDamage));
@@ -472,6 +472,20 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         for (int i=0; i<stats.length; i++) {
             g.drawString(stats[i],x+12,y+68+i*18);
         }
+        
+        // Super power
+        String superDesc = switch(chr) {
+            case SOLDIER -> "RAPID FIRE: 3x attack speed";
+            case MAGE -> "POWER SURGE: 2x damage";
+            case TANK -> "SHIELD: Temporary invincibility";
+            case ROGUE -> "SPEED BOOST: 2x movement speed";
+        };
+        g.setFont(new Font("Monospaced",Font.BOLD,10));
+        g.setColor(chrColor);
+        g.drawString("SUPER:", x+12, y+68+stats.length*18+8);
+        g.setFont(new Font("Monospaced",Font.PLAIN,10));
+        g.setColor(new Color(180,200,160));
+        g.drawString(superDesc, x+12, y+68+stats.length*18+20);
         
         // Character image (bottom center)
         if (characterImages.containsKey(chr)) {
@@ -658,6 +672,7 @@ private void drawMenu(Graphics2D g) {
         { "WASD / ARROWS", "Move" },
         { "LEFT CLICK",    "Shoot" },
         { "SPACE",         "Dash" },
+        { "E",             "Super Power" },
         { "1 / 2 / 3",     "Pick upgrade" },
         { "ESC",           "Menu" }
     };
@@ -853,6 +868,26 @@ private void drawMenu(Graphics2D g) {
         } else {
             g.setColor(new Color(0,255,150)); g.drawString("DASH", barX+barW+100, barY+13);
             g.setColor(new Color(0,255,150)); g.fillRect(barX+barW+100,barY+16,40,4);
+        }
+
+        // Super power cooldown indicator
+        g.setFont(new Font("Monospaced",Font.BOLD,12));
+        float superReady = 1f - (float)player.superCooldown / Player.SUPER_COOLDOWN_MAX;
+        String superName = switch(player.character) {
+            case SOLDIER -> "RAPID";
+            case MAGE -> "POWER";
+            case TANK -> "SHIELD";
+            case ROGUE -> "SPEED";
+        };
+        if (superReady < 1f || player.superActive) {
+            Color superColor = player.superActive ? Color.YELLOW : new Color(150,100,200);
+            g.setColor(superColor); g.drawString(superName, barX+barW+100, barY+25);
+            // Small cooldown bar
+            g.setColor(new Color(60,40,80)); g.fillRect(barX+barW+100,barY+28,40,4);
+            g.setColor(superColor); g.fillRect(barX+barW+100,barY+28,(int)(40*superReady),4);
+        } else {
+            g.setColor(new Color(200,150,255)); g.drawString(superName, barX+barW+100, barY+25);
+            g.setColor(new Color(200,150,255)); g.fillRect(barX+barW+100,barY+28,40,4);
         }
         g.setFont(new Font("Monospaced",Font.BOLD,12));
         String en=enemies.size()+" on field";
@@ -1060,6 +1095,7 @@ private void drawMenu(Graphics2D g) {
             if(k==KeyEvent.VK_A||k==KeyEvent.VK_LEFT)  player.left=true;
             if(k==KeyEvent.VK_D||k==KeyEvent.VK_RIGHT) player.right=true;
             if(k==KeyEvent.VK_SPACE) player.tryDash();
+            if(k==KeyEvent.VK_E) player.trySuperPower();
         }
         if (state==GameState.UPGRADE) {
             if(k==KeyEvent.VK_1) applyUpgrade(0);
