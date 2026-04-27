@@ -60,6 +60,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private float screenShakeX = 0, screenShakeY = 0;
     private int   screenShakeTicks = 0;
     private float characterBobOffset = 0;
+    private int   crosshairPulse    = 0;  // expands on shoot
+    private int   hoveredCharCard   = -1; // character select hover
+    private int   statRevealTick    = 0;  // game over stat reveal animation
 
     // ── Particles [x,y,vx,vy,life,maxLife,r,g,b] ─────────────────
     private final List<float[]> particles = new ArrayList<>();
@@ -166,7 +169,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     // ── Update ────────────────────────────────────────────────────
 
     private void update() {
-        if (state != GameState.PLAYING) { animTick++; return; }
+        if (state != GameState.PLAYING) { animTick++; if(state==GameState.GAME_OVER&&statRevealTick<120) statRevealTick++; return; }
 
         animTick++;
         survivalTicks++;
@@ -196,7 +199,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
 
         // Player update + shooting
         player.update();
-        if (mouseDown && player.canShoot()) { fireTowardMouse(); player.resetCooldown(); SoundManager.shoot(); }
+        if (mouseDown && player.canShoot()) { fireTowardMouse(); player.resetCooldown(); SoundManager.shoot(); crosshairPulse = 8; }
 
         // Bullet collisions - use pooled lists to reduce allocations
         deadBulletsPool.clear();
@@ -266,6 +269,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         }
 
         if (damageFlashTicks > 0) damageFlashTicks--;
+        if (crosshairPulse   > 0) crosshairPulse--;
         if (killFlashTicks   > 0) killFlashTicks--;
 
         // Check upgrade (every level-up)
@@ -275,7 +279,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         if (player.hp <= 0) {
             if (totalKills > highScore) highScore = totalKills;
             shopCoins = coins; // Save coins for shop
-            state = GameState.GAME_OVER;
+            state = GameState.GAME_OVER; statRevealTick = 0;
             SoundManager.gameOver();
         }
     }
@@ -409,9 +413,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             case CHARACTER_SELECT -> drawCharacterSelect(g2);
             case SHOP            -> drawShop(g2);
             case MENU            -> drawMenu(g2);
-            case PLAYING         -> { drawGame(g2); drawHUD(g2); }
+            case PLAYING         -> drawGame(g2);
             case UPGRADE         -> drawUpgrade(g2);
-            case IN_GAME_SHOP    -> { drawGame(g2); drawHUD(g2); drawInGameShop(g2); }
+            case IN_GAME_SHOP    -> { drawGame(g2); drawInGameShop(g2); }
             case GAME_OVER       -> drawGameOver(g2);
         }
     }
@@ -422,9 +426,17 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         // Dark bg
         g.setColor(new Color(5,8,12)); g.fillRect(0,0,GameFrame.WIDTH,GameFrame.HEIGHT);
         
-        g.setFont(new Font("Monospaced",Font.BOLD,40));
-        FontMetrics fm=g.getFontMetrics(); String title="SELECT CHARACTER";
-        g.setColor(new Color(80,255,120)); g.drawString(title,(GameFrame.WIDTH-fm.stringWidth(title))/2,60);
+        g.setFont(new Font("Monospaced",Font.BOLD,36));
+        FontMetrics fm=g.getFontMetrics();
+        String title="SELECT  YOUR  SOLDIER";
+        // Animated colour
+        double tp=Math.sin(animTick*0.05)*0.5+0.5;
+        g.setColor(new Color((int)(50+tp*30),220,(int)(80+tp*40)));
+        g.drawString(title,(GameFrame.WIDTH-fm.stringWidth(title))/2,56);
+        // Underline
+        int tw=fm.stringWidth(title);
+        g.setColor(new Color(40,140,60,120));
+        g.fillRect((GameFrame.WIDTH-tw)/2,60,tw,1);
         
         // Character cards
         Player.CharacterType[] chars = Player.CharacterType.values();
@@ -441,9 +453,25 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     }
     
     private void drawCharacterCard(Graphics2D g, int x, int y, int w, int h, Player.CharacterType chr, int key) {
+        Player.CharacterType[] allChars=Player.CharacterType.values();
+        int idx=0; for(int i=0;i<allChars.length;i++) if(allChars[i]==chr) idx=i;
+        boolean hovered=(idx==hoveredCharCard);
+        boolean selected=(chr==selectedCharacter);
+        int lift=hovered?5:0; y-=lift;
+
+        // Outer glow for hovered/selected
+        if(hovered||selected){
+            Color glowC=selected?new Color(255,200,0,40):new Color(60,220,80,30);
+            g.setColor(glowC); g.fillRoundRect(x-6,y-6,w+12,h+12,16,16);
+        }
         // Card bg
-        g.setColor(new Color(12,28,18)); g.fillRoundRect(x,y,w,h,12,12);
-        g.setColor(new Color(40,140,60,140)); g.setStroke(new BasicStroke(2)); 
+        g.setColor(hovered?new Color(16,36,22):new Color(12,28,18)); g.fillRoundRect(x,y,w,h,12,12);
+        // Top accent bar
+        Color chrColor2=switch(chr){case SOLDIER->new Color(40,110,220);case MAGE->new Color(150,80,220);case TANK->new Color(220,150,40);case ROGUE->new Color(100,200,80);};
+        g.setColor(new Color(chrColor2.getRed(),chrColor2.getGreen(),chrColor2.getBlue(),hovered?180:100));
+        g.fillRoundRect(x,y,w,5,4,4);
+        Color borderCol=selected?new Color(255,210,0,220):hovered?new Color(80,220,100,200):new Color(40,140,60,140);
+        g.setColor(borderCol); g.setStroke(new BasicStroke(selected?2.5f:hovered?2f:1.5f));
         g.drawRoundRect(x,y,w,h,12,12); g.setStroke(new BasicStroke(1));
         
         // Color by character
@@ -664,16 +692,33 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     // ── Background ──
 
     private void drawBackground(Graphics2D g) {
-        // Dark teal ground like EWS
-        g.setColor(new Color(14, 30, 24));
-        g.fillRect(0,0,GameFrame.WIDTH,GameFrame.HEIGHT);
-        // Subtle dot grid
-        g.setColor(new Color(25,50,40,120));
-        for (int x=0;x<GameFrame.WIDTH;x+=32)
-            for (int y=0;y<GameFrame.HEIGHT;y+=32)
+        // Base ground colour
+        g.setColor(new Color(14, 30, 20)); g.fillRect(0,0,GameFrame.WIDTH,GameFrame.HEIGHT);
+
+        // Dirt patch blobs (static, seeded)
+        java.util.Random sr = new java.util.Random(42);
+        for(int i=0;i<18;i++){
+            int bx=sr.nextInt(GameFrame.WIDTH),by=56+sr.nextInt(GameFrame.HEIGHT-80);
+            int bw=30+sr.nextInt(50),bh=20+sr.nextInt(30);
+            g.setColor(new Color(18,38,22,80)); g.fillOval(bx,by,bw,bh);
+        }
+        // Grass tufts
+        for(int i=0;i<40;i++){
+            int gx=sr.nextInt(GameFrame.WIDTH),gy=56+sr.nextInt(GameFrame.HEIGHT-80);
+            int ga=(int)(30+20*Math.sin(animTick*0.02+i));
+            g.setColor(new Color(30,70,30,ga));
+            g.fillRect(gx,gy,2,5); g.fillRect(gx+3,gy+1,2,4); g.fillRect(gx-2,gy+2,2,3);
+        }
+        // Subtle animated dot grid
+        g.setColor(new Color(25,55,38,90));
+        for(int x=0;x<GameFrame.WIDTH;x+=32)
+            for(int y=56;y<GameFrame.HEIGHT;y+=32)
                 g.fillRect(x,y,1,1);
-        // Vignette
-        for (int i=0;i<50;i++) { g.setColor(new Color(0,0,0,(int)(i*2.2f))); g.drawRect(i,i,GameFrame.WIDTH-i*2,GameFrame.HEIGHT-i*2); }
+        // Centre worn path (tactical feel)
+        g.setColor(new Color(20,42,28,60));
+        g.fillOval(GameFrame.WIDTH/2-120,GameFrame.HEIGHT/2-80,240,160);
+        // Heavy vignette
+        for(int i=0;i<60;i++){g.setColor(new Color(0,0,0,(int)(i*2.0f)));g.drawRect(i,i,GameFrame.WIDTH-i*2,GameFrame.HEIGHT-i*2);}
     }
 
     // ── MENU ──
@@ -855,21 +900,114 @@ private void drawMenu(Graphics2D g) {
         }
         
         g2.dispose(); // Clean up the transformed graphics
-        
+
+        // Off-screen enemy danger arrows
+        drawDangerArrows(g);
+
         // Draw UI elements without screen shake
         drawCrosshair(g, mouseX, mouseY);
         drawHUD(g);
+        drawAbilityIcons(g);
+    }
+
+    /** Draw red arrows at screen edges pointing toward off-screen enemies. */
+    private void drawDangerArrows(Graphics2D g) {
+        int margin=36, cx=GameFrame.WIDTH/2, cy=GameFrame.HEIGHT/2;
+        for(Enemy e : enemies) {
+            float ex2=e.getCenterX(), ey2=e.getCenterY();
+            if(ex2>=0&&ex2<=GameFrame.WIDTH&&ey2>=52&&ey2<=GameFrame.HEIGHT) continue;
+            // Direction from screen center to enemy
+            float dx=ex2-cx, dy=ey2-cy;
+            float len=(float)Math.sqrt(dx*dx+dy*dy); if(len==0) continue;
+            dx/=len; dy/=len;
+            // Clamp arrow position to screen edge
+            float ax=cx+dx*(GameFrame.WIDTH/2f-margin);
+            float ay=cy+dy*(GameFrame.HEIGHT/2f-margin);
+            ax=Math.max(margin,Math.min(GameFrame.WIDTH-margin,ax));
+            ay=Math.max(margin+52,Math.min(GameFrame.HEIGHT-margin,ay));
+            // Draw arrow
+            double ang=Math.atan2(dy,dx);
+            java.awt.geom.AffineTransform old2=g.getTransform();
+            g.translate(ax,ay); g.rotate(ang);
+            int a=e.elite?200:140;
+            g.setColor(new Color(255,60,60,a));
+            g.setStroke(new BasicStroke(2));
+            g.fillPolygon(new int[]{0,-8,-8},new int[]{0,-5,5},3);
+            g.drawLine(-8,0,-16,0);
+            g.setTransform(old2); g.setStroke(new BasicStroke(1));
+        }
+    }
+
+    /** Draw circular ability cooldown icons (bottom right). */
+    private void drawAbilityIcons(Graphics2D g) {
+        int baseX=GameFrame.WIDTH-120, baseY=GameFrame.HEIGHT-46;
+
+        // DASH circle icon
+        float dashR=1f-(float)player.dashCooldown/Player.DASH_COOLDOWN_MAX;
+        drawCircleIcon(g, baseX, baseY, dashR, player.isDashing(),
+            player.dashCooldown==0?new Color(0,220,255):new Color(0,140,200), "DASH");
+
+        // SUPER circle icon
+        float superR=1f-(float)player.superCooldown/Player.SUPER_COOLDOWN_MAX;
+        String superLabel=switch(player.character){
+            case SOLDIER->"FIRE"; case MAGE->"MAGE"; case TANK->"SHLD"; case ROGUE->"SPNT";
+        };
+        Color superCol=switch(player.character){
+            case SOLDIER->new Color(255,220,0); case MAGE->new Color(220,60,255);
+            case TANK->new Color(60,220,60); case ROGUE->new Color(255,140,0);
+        };
+        drawCircleIcon(g, baseX+60, baseY, superR, player.superActive, superCol, superLabel);
+    }
+
+    private void drawCircleIcon(Graphics2D g, int x, int y, float fill, boolean active, Color col, String label) {
+        int r=20;
+        // Background circle
+        g.setColor(new Color(0,0,0,140)); g.fillOval(x-r,y-r,r*2,r*2);
+        // Fill arc (clockwise from top)
+        g.setColor(active?col:col.darker());
+        g.setStroke(new BasicStroke(3));
+        g.drawArc(x-r,y-r,r*2,r*2,90,-(int)(360*fill));
+        // Ready glow
+        if(fill>=1f){
+            g.setColor(new Color(col.getRed(),col.getGreen(),col.getBlue(),60));
+            g.fillOval(x-r,y-r,r*2,r*2);
+        }
+        // Border
+        g.setColor(new Color(0,0,0,80)); g.setStroke(new BasicStroke(1));
+        g.drawOval(x-r,y-r,r*2,r*2);
+        // Label
+        g.setFont(new Font("Monospaced",Font.BOLD,8));
+        FontMetrics fm=g.getFontMetrics();
+        g.setColor(fill>=1f?col:new Color(150,150,150));
+        g.drawString(label,x-fm.stringWidth(label)/2,y+3);
+        g.setStroke(new BasicStroke(1));
     }
 
     private void drawCrosshair(Graphics2D g, int cx, int cy) {
-        int gap=6,len=9; g.setStroke(new BasicStroke(2));
-        g.setColor(new Color(0,0,0,100));
+        // Expands on shoot, shrinks back
+        float expand = crosshairPulse / 8f;
+        int gap = (int)(6 + expand*8), len = (int)(9 - expand*3);
+        float alpha = 1f - expand*0.3f;
+        g.setStroke(new BasicStroke(1.5f + expand));
+        // Shadow
+        g.setColor(new Color(0,0,0,80));
         g.drawLine(cx-gap-len-1,cy,cx-gap-1,cy); g.drawLine(cx+gap+1,cy,cx+gap+len+1,cy);
         g.drawLine(cx,cy-gap-len-1,cx,cy-gap-1); g.drawLine(cx,cy+gap+1,cx,cy+gap+len+1);
-        g.setColor(new Color(80,255,120,200));
+        // Main lines
+        int r=(int)(80),gv=(int)(200+55*alpha),b=(int)(120);
+        g.setColor(new Color(r,gv,b,(int)(200*alpha)));
         g.drawLine(cx-gap-len,cy,cx-gap,cy); g.drawLine(cx+gap,cy,cx+gap+len,cy);
         g.drawLine(cx,cy-gap-len,cx,cy-gap); g.drawLine(cx,cy+gap,cx,cy+gap+len);
-        g.setColor(new Color(80,255,120,180)); g.fillOval(cx-2,cy-2,4,4);
+        // Centre dot (red when pulsing)
+        g.setColor(crosshairPulse>0?new Color(255,80,80,200):new Color(80,255,120,180));
+        g.fillOval(cx-2,cy-2,4,4);
+        // Outer ring on pulse
+        if(crosshairPulse>4){
+            float ringR=expand*18;
+            g.setColor(new Color(255,200,80,(int)(crosshairPulse*18)));
+            g.setStroke(new BasicStroke(1));
+            g.drawOval(cx-(int)ringR,cy-(int)ringR,(int)(ringR*2),(int)(ringR*2));
+        }
         g.setStroke(new BasicStroke(1));
     }
 
@@ -1032,30 +1170,45 @@ private void drawMenu(Graphics2D g) {
         String[] parts=text.split("\\|");
         String tag=parts[0], desc=parts.length>1?parts[1]:"", icon=parts.length>2?parts[2]:"*";
 
+        // Rarity colour: power/multi/crit = gold (rare), heal/hp = green (common), others = blue
+        boolean rare=tag.equals("POWER")||tag.equals("MULTI")||tag.equals("CRIT")||tag.equals("COINS");
+        boolean uncommon=tag.equals("RAPID")||tag.equals("SLOW")||tag.equals("REGEN")||tag.equals("WIDE");
+        Color rarityCol=rare?new Color(255,200,40):uncommon?new Color(80,160,255):new Color(60,200,80);
+
         int lift=hov?6:0; cy-=lift;
 
-        // Glow
-        if(hov){g.setColor(new Color(60,200,80,35));g.fillRoundRect(cx-6,cy-6,w+12,h+12,18,18);}
+        // Outer glow
+        if(hov||rare){
+            g.setColor(new Color(rarityCol.getRed(),rarityCol.getGreen(),rarityCol.getBlue(),hov?50:20));
+            g.fillRoundRect(cx-6,cy-6,w+12,h+12,18,18);
+        }
+        // Card bg — slightly tinted by rarity
+        int bgR=rare?20:uncommon?14:12, bgG=rare?30:uncommon?28:28, bgB=rare?10:uncommon?38:18;
+        g.setColor(hov?new Color(bgR+6,bgG+12,bgB+4):new Color(bgR,bgG,bgB));
+        g.fillRoundRect(cx,cy,w,h,12,12);
 
-        // Card bg
-        g.setColor(hov?new Color(18,40,24):new Color(12,28,18)); g.fillRoundRect(cx,cy,w,h,12,12);
-
-        // Top accent
-        g.setColor(hov?new Color(60,220,80,200):new Color(40,140,60,140)); g.fillRoundRect(cx,cy,w,5,4,4);
+        // Top accent bar (rarity coloured)
+        g.setColor(new Color(rarityCol.getRed(),rarityCol.getGreen(),rarityCol.getBlue(),hov?200:120));
+        g.fillRoundRect(cx,cy,w,5,4,4);
 
         // Border
-        g.setColor(hov?new Color(60,220,80,220):new Color(30,110,50,160));
+        g.setColor(hov?new Color(rarityCol.getRed(),rarityCol.getGreen(),rarityCol.getBlue(),220):new Color(rarityCol.getRed(),rarityCol.getGreen(),rarityCol.getBlue(),100));
         g.setStroke(new BasicStroke(hov?2:1.5f)); g.drawRoundRect(cx,cy,w,h,12,12); g.setStroke(new BasicStroke(1));
 
-        // Icon (large)
+        // Rarity label (top right)
+        g.setFont(new Font("Monospaced",Font.BOLD,9));
+        String rlabel=rare?"RARE":uncommon?"RARE":"";
+        if(!rlabel.isEmpty()){g.setColor(rarityCol);FontMetrics rfm=g.getFontMetrics();g.drawString(rlabel,cx+w-rfm.stringWidth(rlabel)-6,cy+13);}
+
+        // Icon (large, rarity coloured)
         g.setFont(new Font("Monospaced",Font.BOLD,22));
         FontMetrics fm=g.getFontMetrics();
-        g.setColor(hov?new Color(100,255,130):new Color(60,200,90));
+        g.setColor(hov?rarityCol.brighter():rarityCol);
         g.drawString(icon,cx+(w-fm.stringWidth(icon))/2,cy+36);
 
         // Tag
         g.setFont(new Font("Monospaced",Font.BOLD,16)); fm=g.getFontMetrics();
-        g.setColor(hov?new Color(160,255,160):new Color(100,220,120));
+        g.setColor(hov?rarityCol.brighter():new Color(Math.min(255,rarityCol.getRed()+60),Math.min(255,rarityCol.getGreen()+60),Math.min(255,rarityCol.getBlue()+60)));
         g.drawString(tag,cx+(w-fm.stringWidth(tag))/2,cy+58);
 
         // Desc (word-wrap)
@@ -1102,7 +1255,7 @@ private void drawMenu(Graphics2D g) {
         g.setColor(new Color(0,0,0,170)); g.fillRoundRect(200,205,400,148,14,14);
         g.setColor(new Color(100,20,20,120)); g.setStroke(new BasicStroke(1)); g.drawRoundRect(200,205,400,148,14,14); g.setStroke(new BasicStroke(1));
 
-        g.setFont(new Font("Monospaced",Font.BOLD,18)); g.setColor(Color.WHITE);
+        g.setFont(new Font("Monospaced",Font.BOLD,18));
         int secs2=survivalTicks/60,mins2=secs2/60; secs2%=60;
         String[] statLines={
             "Kills:          "+totalKills,
@@ -1111,7 +1264,14 @@ private void drawMenu(Graphics2D g) {
             "Wave reached:   "+waveManager.getCurrentWave(),
         };
         int sy=232;
-        for (String sl:statLines) { fm=g.getFontMetrics(); g.drawString(sl,(GameFrame.WIDTH-fm.stringWidth(sl))/2,sy); sy+=28; }
+        for(int si=0;si<statLines.length;si++){
+            int revealAt=si*22; // stagger reveal
+            if(statRevealTick<revealAt) break;
+            float lineAlpha=Math.min(1f,(statRevealTick-revealAt)/15f);
+            g.setColor(new Color(255,255,255,(int)(lineAlpha*220)));
+            fm=g.getFontMetrics(); g.drawString(statLines[si],(GameFrame.WIDTH-fm.stringWidth(statLines[si]))/2,sy);
+            sy+=28;
+        }
 
         // High score
         g.setFont(new Font("Monospaced",Font.BOLD,15));
@@ -1261,8 +1421,16 @@ private void drawMenu(Graphics2D g) {
     }
     @Override public void mouseEntered(MouseEvent e)  {}
     @Override public void mouseExited(MouseEvent e)   {}
-    @Override public void mouseMoved(MouseEvent e)    { mouseX=e.getX(); mouseY=e.getY(); updateCardHover(e.getX(),e.getY()); }
-    @Override public void mouseDragged(MouseEvent e)  { mouseX=e.getX(); mouseY=e.getY(); updateCardHover(e.getX(),e.getY()); }
+    @Override public void mouseMoved(MouseEvent e)    { mouseX=e.getX(); mouseY=e.getY(); updateCardHover(e.getX(),e.getY()); updateCharCardHover(e.getX(),e.getY()); }
+    @Override public void mouseDragged(MouseEvent e)  { mouseX=e.getX(); mouseY=e.getY(); updateCardHover(e.getX(),e.getY()); updateCharCardHover(e.getX(),e.getY()); }
+
+    private void updateCharCardHover(int mx, int my) {
+        if(state!=GameState.CHARACTER_SELECT){hoveredCharCard=-1;return;}
+        int cardW=200,cardH=280,totalW=cardW*4+60,startX=(GameFrame.WIDTH-totalW)/2,cardY=100;
+        hoveredCharCard=-1;
+        Player.CharacterType[] chars=Player.CharacterType.values();
+        for(int i=0;i<chars.length;i++){int cx=startX+i*(cardW+20);if(mx>=cx&&mx<=cx+cardW&&my>=cardY&&my<=cardY+cardH){hoveredCharCard=i;break;}}
+    }
 
     private void updateCardHover(int mx, int my) {
         if(state!=GameState.UPGRADE){hoveredCard=-1;return;}
