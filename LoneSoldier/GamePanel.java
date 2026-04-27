@@ -70,6 +70,12 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     // ── Mouse ─────────────────────────────────────────────────────
     private int  mouseX = GameFrame.WIDTH/2, mouseY = GameFrame.HEIGHT/2;
     private boolean mouseDown = false;
+    
+    // ── Performance Caches ────────────────────────────────────────
+    private FontMetrics cachedFM = null;
+    private List<Bullet> deadBulletsPool = new ArrayList<>();
+    private List<Enemy> deadEnemiesPool = new ArrayList<>();
+    private List<Enemy> hitPlayerPool = new ArrayList<>();
 
     // ── Game Loop ─────────────────────────────────────────────────
     private final Timer gameTimer;
@@ -192,18 +198,18 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         player.update();
         if (mouseDown && player.canShoot()) { fireTowardMouse(); player.resetCooldown(); SoundManager.shoot(); }
 
-        // Bullet collisions
-        List<Bullet> deadBullets = new ArrayList<>();
-        List<Enemy>  deadEnemies = new ArrayList<>();
+        // Bullet collisions - use pooled lists to reduce allocations
+        deadBulletsPool.clear();
+        deadEnemiesPool.clear();
         for (Bullet b : bullets) {
             b.update();
-            if (b.isOffScreen()) { deadBullets.add(b); continue; }
+            if (b.isOffScreen()) { deadBulletsPool.add(b); continue; }
             for (Enemy e : enemies) {
-                if (!deadEnemies.contains(e) && b.getBounds().intersects(e.getBounds())) {
+                if (!deadEnemiesPool.contains(e) && b.getBounds().intersects(e.getBounds())) {
                     e.hp -= b.damage;
-                    deadBullets.add(b);
+                    deadBulletsPool.add(b);
                     if (e.hp <= 0) {
-                        deadEnemies.add(e);
+                        deadEnemiesPool.add(e);
                         totalKills++; killFlashTicks = 10; 
                         int baseCoins = e.coinDrop;
                         int earnedCoins = (int)(baseCoins * player.coinMultiplier);
@@ -222,17 +228,17 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                 }
             }
         }
-        bullets.removeAll(deadBullets);
-        enemies.removeAll(deadEnemies);
+        bullets.removeAll(deadBulletsPool);
+        enemies.removeAll(deadEnemiesPool);
 
-        // Enemy → player collision
-        List<Enemy> hitPlayer = new ArrayList<>();
+        // Enemy → player collision - use pooled list
+        hitPlayerPool.clear();
         for (Enemy e : enemies) {
             float effectiveSpeed = e.speed * (1f - player.enemySlowPercent);
             e.update(player.getCenterX(), player.getCenterY(), effectiveSpeed);
             if (e.getBounds().intersects(player.getBounds())) {
                 player.takeDamage(e.elite ? 2 : 1);
-                hitPlayer.add(e);
+                hitPlayerPool.add(e);
                 damageFlashTicks = 14;
                 // Add screen shake for damage
                 addScreenShake(8, 6);
@@ -240,7 +246,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                 spawnFloatText(player.getCenterX(), player.getCenterY()-20, "-" + (e.elite?2:1)+" HP", 255,60,60);
             }
         }
-        enemies.removeAll(hitPlayer);
+        enemies.removeAll(hitPlayerPool);
 
         // Update screen shake
         if (screenShakeTicks > 0) {
@@ -382,7 +388,8 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             case "WIDE"  -> player.bulletSpreadAngle += 0.15f;
         }
         state = GameState.PLAYING;
-        SoundManager.waveStart();
+        SoundManager.upgradeSelect();
+        SoundManager.levelUp();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -393,8 +400,11 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
+        // Performance optimizations
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         switch (state) {
             case CHARACTER_SELECT -> drawCharacterSelect(g2);
             case SHOP            -> drawShop(g2);
