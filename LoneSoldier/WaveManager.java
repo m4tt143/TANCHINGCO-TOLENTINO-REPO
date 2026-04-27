@@ -2,102 +2,42 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * WaveManager - Controls enemy spawning per wave.
- * Each wave has more enemies that are faster and tougher.
+ * WaveManager - Endless continuous spawning.
+ * Enemies spawn constantly; waves auto-advance every 30 seconds.
  */
 public class WaveManager {
-
-    private int  currentWave    = 1;
-    private int  enemiesToSpawn = 0;
-    private int  spawnCooldown  = 0;
-    private boolean allSpawned  = false;
-
-    // Ticks between each enemy spawn (decreases per wave)
-    private static final int BASE_INTERVAL = 50;
-
+    private int   currentWave   = 1;
+    private int   spawnCooldown = 40;
+    private int   waveTicks     = 0;
+    private static final int WAVE_DURATION = 60 * 30; // 30s per wave
     private final Random rand = new Random();
 
-    public WaveManager() {
-        prepareWave();
-    }
-
-    /** Set up the enemy count and reset spawn state for current wave. */
-    private void prepareWave() {
-        // Wave 1 = 8 enemies, each wave +5 more
-        enemiesToSpawn = 8 + (currentWave - 1) * 5;
-        allSpawned     = false;
-        spawnCooldown  = 40;  // Short delay before first enemy
-    }
-
-    /**
-     * Called every game tick. Spawns enemies at timed intervals.
-     * @param enemies  The shared enemy list to add new enemies into.
-     */
     public void update(List<Enemy> enemies) {
-        if (allSpawned) return;
-
-        spawnCooldown--;
-        if (spawnCooldown <= 0) {
-            spawnEnemy(enemies);
-            enemiesToSpawn--;
-
-            // Faster spawning as waves progress
-            int interval = Math.max(18, BASE_INTERVAL - (currentWave * 3));
-            spawnCooldown = interval;
-
-            if (enemiesToSpawn <= 0) {
-                allSpawned = true;
-            }
+        waveTicks++;
+        if (waveTicks >= WAVE_DURATION) { currentWave++; waveTicks = 0; }
+        if (--spawnCooldown <= 0) {
+            int batch = 1 + currentWave / 5;
+            for (int i = 0; i < batch; i++) spawnEnemy(enemies);
+            spawnCooldown = Math.max(12, 55 - currentWave * 3);
         }
     }
 
-    /** Spawn one enemy at a random edge of the screen. */
     private void spawnEnemy(List<Enemy> enemies) {
         float ex, ey;
-        int side = rand.nextInt(4);
-
-        switch (side) {
-            case 0 -> { // Top
-                ex = rand.nextFloat() * GameFrame.WIDTH;
-                ey = -Enemy.SIZE - 5;
-            }
-            case 1 -> { // Bottom
-                ex = rand.nextFloat() * GameFrame.WIDTH;
-                ey = GameFrame.HEIGHT + 5;
-            }
-            case 2 -> { // Left
-                ex = -Enemy.SIZE - 5;
-                ey = 60 + rand.nextFloat() * (GameFrame.HEIGHT - 60);
-            }
-            default -> { // Right
-                ex = GameFrame.WIDTH + 5;
-                ey = 60 + rand.nextFloat() * (GameFrame.HEIGHT - 60);
-            }
+        switch (rand.nextInt(4)) {
+            case 0 -> { ex = rand.nextFloat() * GameFrame.WIDTH; ey = -Enemy.SIZE - 5; }
+            case 1 -> { ex = rand.nextFloat() * GameFrame.WIDTH; ey = GameFrame.HEIGHT + 5; }
+            case 2 -> { ex = -Enemy.SIZE - 5; ey = 55 + rand.nextFloat() * (GameFrame.HEIGHT - 60); }
+            default->{ ex = GameFrame.WIDTH + 5;  ey = 55 + rand.nextFloat() * (GameFrame.HEIGHT - 60); }
         }
-
-        // Every 3 waves, enemies gain +1 HP
-        int hp    = 1 + (currentWave - 1) / 3;
-
-        // Speed scales with each wave
-        float speed = 1.2f + currentWave * 0.12f;
-
-        enemies.add(new Enemy(ex, ey, hp, speed));
+        int   hp    = 1 + (currentWave - 1) / 3;
+        float speed = 1.0f + currentWave * 0.10f;
+        boolean elite = currentWave >= 3 && rand.nextInt(8) == 0;
+        if (elite) { hp *= 3; speed *= 0.75f; }
+        enemies.add(new Enemy(ex, ey, hp, speed, elite));
     }
 
-    /**
-     * Advance to the next wave.
-     * Called after the player picks an upgrade.
-     */
-    public void nextWave() {
-        currentWave++;
-        prepareWave();
-    }
-
-    // --- Getters ---
-
-    /** Returns true when all enemies for this wave have been spawned. */
-    public boolean isAllSpawned() { return allSpawned; }
-
-    public int getCurrentWave()      { return currentWave; }
-    public int getRemainingToSpawn() { return enemiesToSpawn; }
+    public int   getCurrentWave()   { return currentWave; }
+    public float getWaveProgress()  { return (float) waveTicks / WAVE_DURATION; }
+    public void  reset()            { currentWave = 1; waveTicks = 0; spawnCooldown = 40; }
 }
