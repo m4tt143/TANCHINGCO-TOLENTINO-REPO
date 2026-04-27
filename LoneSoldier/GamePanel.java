@@ -698,14 +698,17 @@ private void drawMenu(Graphics2D g) {
         // Particles (behind entities)
         for (float[] p : particles) {
             float lr=p[4]/p[5]; int a=(int)(lr*210);
-            g2.setColor(new Color((int)p[6],(int)p[7],(int)p[8],Math.min(255,a)));
+            int r = Math.max(0, Math.min(255, (int)p[6]));
+            int g_val = Math.max(0, Math.min(255, (int)p[7]));
+            int b = Math.max(0, Math.min(255, (int)p[8]));
+            g2.setColor(new Color(r, g_val, b, Math.max(0, Math.min(255, a))));
             int sz=Math.max(2,(int)(5*lr)); g2.fillOval((int)p[0]-sz/2,(int)p[1]-sz/2,sz,sz);
         }
 
         // Damage border vignette
         if (damageFlashTicks>0) {
             int fa=Math.min(180,damageFlashTicks*14);
-            for (int i=0;i<22;i++) { g2.setColor(new Color(220,0,0,Math.max(0,fa-i*8))); g2.drawRect(i,i,GameFrame.WIDTH-i*2,GameFrame.HEIGHT-i*2); }
+            for (int i=0;i<22;i++) { g2.setColor(new Color(220,0,0,Math.max(0, Math.min(255, fa-i*8)))); g2.drawRect(i,i,GameFrame.WIDTH-i*2,GameFrame.HEIGHT-i*2); }
         }
 
         // Entities
@@ -982,22 +985,33 @@ private void drawMenu(Graphics2D g) {
         String hs="Best: "+highScore+" kills"; fm=g.getFontMetrics();
         g.drawString(hs,(GameFrame.WIDTH-fm.stringWidth(hs))/2,sy+6);
 
-        // Buttons
-        g.setColor(new Color(100,20,20,80)); g.fillRect(200,370,400,1);
+        // Buttons - Spread them out much wider
+        g.setColor(new Color(100,20,20,80)); g.fillRect(100,370,600,1);
         long bp=(System.currentTimeMillis()/600)%2;
         g.setFont(new Font("Monospaced",Font.BOLD,16));
-        // Play again
-        g.setColor(new Color(0,0,0,130)); g.fillRoundRect(215,383,155,34,8,8);
-        g.setColor(bp==0?new Color(60,200,80):new Color(40,140,50)); g.setStroke(new BasicStroke(1.5f)); g.drawRoundRect(215,383,155,34,8,8); g.setStroke(new BasicStroke(1));
-        g.setColor(new Color(100,240,120)); g.drawString("[ ENTER ]",230,406);
-        // Menu
-        g.setColor(new Color(0,0,0,130)); g.fillRoundRect(390,383,135,34,8,8);
-        g.setColor(new Color(80,100,140,140)); g.setStroke(new BasicStroke(1.5f)); g.drawRoundRect(390,383,135,34,8,8); g.setStroke(new BasicStroke(1));
-        g.setColor(new Color(140,160,200)); g.drawString("[ ESC ]",408,406);
-        // Labels
+        
+        // Play again button (left side)
+        int btn1X = 140;
+        int btn1W = 180;
+        g.setColor(new Color(0,0,0,130)); g.fillRoundRect(btn1X,383,btn1W,34,8,8);
+        g.setColor(bp==0?new Color(60,200,80):new Color(40,140,50)); g.setStroke(new BasicStroke(1.5f)); g.drawRoundRect(btn1X,383,btn1W,34,8,8); g.setStroke(new BasicStroke(1));
+        g.setColor(new Color(100,240,120)); g.drawString("[ ENTER ]",(btn1X+btn1W/2)-35,406);
+        
+        // Menu button (right side)
+        int btn2X = 480;
+        int btn2W = 180;
+        g.setColor(new Color(0,0,0,130)); g.fillRoundRect(btn2X,383,btn2W,34,8,8);
+        g.setColor(new Color(80,100,140,140)); g.setStroke(new BasicStroke(1.5f)); g.drawRoundRect(btn2X,383,btn2W,34,8,8); g.setStroke(new BasicStroke(1));
+        g.setColor(new Color(140,160,200)); g.drawString("[ ESC ]",(btn2X+btn2W/2)-28,406);
+        
+        // Labels - positioned below buttons with more space
         g.setFont(new Font("Monospaced",Font.PLAIN,12));
-        g.setColor(new Color(80,160,90)); g.drawString("Play again",232,422);
-        g.setColor(new Color(100,120,160)); g.drawString("Main menu",408,422);
+        g.setColor(new Color(80,160,90)); 
+        String playLabel="Play again"; fm=g.getFontMetrics(); 
+        g.drawString(playLabel,(btn1X+btn1W/2)-(fm.stringWidth(playLabel)/2),435);
+        g.setColor(new Color(100,120,160)); 
+        String menuLabel="Main menu"; fm=g.getFontMetrics(); 
+        g.drawString(menuLabel,(btn2X+btn2W/2)-(fm.stringWidth(menuLabel)/2),435);
     }
 
     // ── Util ──
