@@ -266,57 +266,95 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
 
     // ── MENU Screen ──
     private void drawMenu(Graphics2D g) {
-        // Dark background with grid
-        g.setColor(new Color(12, 22, 12));
+        // Beautiful gradient background
+        g.setColor(new Color(20, 35, 20));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
-        g.setColor(new Color(22, 40, 22));
-        for (int x = 0; x < GameFrame.WIDTH;  x += 40) g.drawLine(x, 0, x, GameFrame.HEIGHT);
-        for (int y = 0; y < GameFrame.HEIGHT; y += 40) g.drawLine(0, y, GameFrame.WIDTH, y);
+        
+        // Subtle grid pattern
+        g.setColor(new Color(35, 55, 35));
+        g.setStroke(new BasicStroke(1));
+        for (int x = 0; x < GameFrame.WIDTH;  x += 60) g.drawLine(x, 0, x, GameFrame.HEIGHT);
+        for (int y = 0; y < GameFrame.HEIGHT; y += 60) g.drawLine(0, y, GameFrame.WIDTH, y);
+        
+        // Decorative header box
+        g.setColor(new Color(30, 50, 30, 180));
+        g.fillRoundRect(100, 80, 600, 120, 20, 20);
+        g.setColor(new Color(100, 180, 100));
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(100, 80, 600, 120, 20, 20);
 
-        // Game Title
-        g.setFont(new Font("Arial", Font.BOLD, 62));
-        g.setColor(new Color(255, 210, 40));
-        drawCentered(g, "LONE SOLDIER", 175);
+        // Game Title with glow effect
+        g.setFont(new Font("Arial", Font.BOLD, 72));
+        g.setColor(new Color(255, 230, 100));
+        drawCentered(g, "LONE SOLDIER", 140);
+        
+        // Subtitle
+        g.setFont(new Font("Courier New", Font.ITALIC, 26));
+        g.setColor(new Color(150, 220, 150));
+        drawCentered(g, "« Last Stand »", 175);
 
-        g.setFont(new Font("Arial", Font.PLAIN, 22));
-        g.setColor(new Color(200, 220, 200));
-        drawCentered(g, "Last Stand", 210);
+        // Divider with style
+        g.setColor(new Color(100, 180, 100));
+        g.fillRect(180, 200, 440, 2);
 
-        // Divider
-        g.setColor(new Color(60, 90, 60));
-        g.fillRect(250, 230, 300, 2);
+        // Main instructions box
+        g.setColor(new Color(25, 45, 25, 170));
+        g.fillRoundRect(120, 220, 560, 160, 15, 15);
+        g.setColor(new Color(120, 200, 120));
+        g.setStroke(new BasicStroke(1.5f));
+        g.drawRoundRect(120, 220, 560, 160, 15, 15);
+
+        // Controls heading
+        g.setFont(new Font("Arial", Font.BOLD, 18));
+        g.setColor(new Color(255, 200, 80));
+        drawCentered(g, "HOW TO PLAY", 244);
 
         // Controls
-        g.setFont(new Font("Arial", Font.PLAIN, 16));
-        g.setColor(Color.LIGHT_GRAY);
+        g.setFont(new Font("Arial", Font.PLAIN, 15));
+        g.setColor(new Color(220, 235, 220));
         String[] lines = {
-            "Move:  W A S D  or  Arrow Keys",
-            "Aim:   Mouse Cursor",
-            "Shoot: Hold Left Mouse Button",
-            "",
-            "Survive endless waves of enemies.",
-            "Choose upgrades between waves.",
+            "◆ Move: W A S D  or  Arrow Keys",
+            "◆ Aim: Move Your Mouse",
+            "◆ Shoot: Hold Left Mouse Button",
         };
-        int lineY = 262;
-        for (String line : lines) { drawCentered(g, line, lineY); lineY += 26; }
+        int lineY = 272;
+        for (String line : lines) { drawCentered(g, line, lineY); lineY += 25; }
+
+        // Instructions box
+        g.setColor(new Color(25, 45, 25, 170));
+        g.fillRoundRect(120, 395, 560, 80, 15, 15);
+        g.setColor(new Color(120, 200, 120));
+        g.drawRoundRect(120, 395, 560, 80, 15, 15);
+
+        g.setFont(new Font("Arial", Font.PLAIN, 14));
+        g.setColor(new Color(200, 225, 200));
+        drawCentered(g, "Survive endless waves of enemies  •  Choose upgrades between waves", 415);
+        drawCentered(g, "Defeat more soldiers to increase difficulty and gain more points!", 438);
 
         // ENTER prompt (pulsing effect)
         long pulse = (System.currentTimeMillis() / 500) % 2;
-        g.setFont(new Font("Arial", Font.BOLD, 20));
-        g.setColor(pulse == 0 ? new Color(255, 220, 60) : new Color(180, 140, 20));
-        drawCentered(g, ">>> PRESS  ENTER  TO START <<<", 430);
+        g.setFont(new Font("Arial", Font.BOLD, 22));
+        g.setColor(pulse == 0 ? new Color(255, 220, 60) : new Color(200, 160, 30));
+        g.setStroke(new BasicStroke(2));
+        drawCentered(g, "▶  PRESS  ENTER  TO START  ◀", 495);
 
-        // High score
+        // High score box
         if (highScore > 0) {
-            g.setFont(new Font("Arial", Font.BOLD, 15));
+            g.setColor(new Color(40, 70, 40, 180));
+            g.fillRoundRect(220, 520, 360, 50, 10, 10);
             g.setColor(new Color(255, 190, 50));
-            drawCentered(g, "Best: " + highScore + " kills", 470);
+            g.setStroke(new BasicStroke(2));
+            g.drawRoundRect(220, 520, 360, 50, 10, 10);
+            
+            g.setFont(new Font("Arial", Font.BOLD, 20));
+            g.setColor(new Color(255, 210, 80));
+            drawCentered(g, "★ BEST SCORE: " + highScore + " KILLS ★", 548);
         }
 
         // Credits
-        g.setFont(new Font("Arial", Font.PLAIN, 13));
-        g.setColor(new Color(80, 110, 80));
-        drawCentered(g, "Tolentino & Tanchico  |  Programming 2 Finals  |  UPHSD Molino", GameFrame.HEIGHT - 18);
+        g.setFont(new Font("Arial", Font.PLAIN, 12));
+        g.setColor(new Color(100, 140, 100));
+        drawCentered(g, "Made by Tolentino & Tanchico  |  Programming 2  |  UPHSD Molino", GameFrame.HEIGHT - 18);
     }
 
     // ── GAMEPLAY Screen ──
