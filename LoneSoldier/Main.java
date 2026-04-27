@@ -4,7 +4,7 @@ import javax.swing.SwingUtilities;
  * LONE SOLDIER: Last Stand
  * Survival Defense Game
  *
- * By: Tolentino & Tanchico
+ * By: Tolentino & Tanchingco
  * Programming 2 Finals Project
  * UPHSD Molino - CCS
  */
