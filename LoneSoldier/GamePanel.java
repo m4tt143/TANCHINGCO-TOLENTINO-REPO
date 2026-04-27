@@ -15,7 +15,7 @@ import java.util.List;
 public class GamePanel extends JPanel implements KeyListener, MouseListener, MouseMotionListener {
 
     // ── States ───────────────────────────────────────────────────
-    public enum GameState { CHARACTER_SELECT, SHOP, MENU, PLAYING, UPGRADE, GAME_OVER }
+    public enum GameState { CHARACTER_SELECT, SHOP, MENU, PLAYING, UPGRADE, IN_GAME_SHOP, GAME_OVER }
     private GameState state = GameState.MENU;
 
     // ── Game Objects ─────────────────────────────────────────────
@@ -409,8 +409,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             case CHARACTER_SELECT -> drawCharacterSelect(g2);
             case SHOP            -> drawShop(g2);
             case MENU            -> drawMenu(g2);
-            case PLAYING         -> drawGame(g2);
+            case PLAYING         -> { drawGame(g2); drawHUD(g2); }
             case UPGRADE         -> drawUpgrade(g2);
+            case IN_GAME_SHOP    -> { drawGame(g2); drawHUD(g2); drawInGameShop(g2); }
             case GAME_OVER       -> drawGameOver(g2);
         }
     }
@@ -571,6 +572,92 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         } else {
             g.setColor(affordable ? new Color(255,215,0) : new Color(100,100,100));
             String costStr="$"+cost; g.drawString(costStr,x+(w-fm.stringWidth(costStr))/2,y+h-15);
+        }
+    }
+
+    // ── IN-GAME SHOP ──
+    
+    private void drawInGameShop(Graphics2D g) {
+        // Semi-transparent overlay
+        g.setColor(new Color(0,0,0,200)); 
+        g.fillRect(0,0,GameFrame.WIDTH,GameFrame.HEIGHT);
+        
+        g.setFont(new Font("Monospaced",Font.BOLD,32));
+        FontMetrics fm=g.getFontMetrics(); String title="IN-GAME SHOP";
+        g.setColor(new Color(255,215,40)); g.drawString(title,(GameFrame.WIDTH-fm.stringWidth(title))/2,80);
+        
+        g.setFont(new Font("Monospaced",Font.PLAIN,16)); 
+        g.setColor(new Color(180,180,120));
+        String coinsStr = "Current Coins: " + coins;
+        g.drawString(coinsStr,(GameFrame.WIDTH-fm.stringWidth(coinsStr))/2,120);
+        
+        g.setFont(new Font("Monospaced",Font.PLAIN,12));
+        g.setColor(new Color(150,150,150));
+        String instr = "Press 1-6 to buy upgrades | ESC to close";
+        g.drawString(instr,(GameFrame.WIDTH-fm.stringWidth(instr))/2,GameFrame.HEIGHT-40);
+        
+        // Shop items - same as wave upgrades but with costs
+        String[][] items = {
+            {"DAMAGE +1", "Cost: 15", "Increase bullet damage"},
+            {"FIRE RATE +", "Cost: 12", "Shoot faster"},
+            {"TRIPLE SHOT", "Cost: 25", "Shoot 3 bullets at once"},
+            {"ARMOR +5", "Cost: 18", "Block next 5 hits"},
+            {"SLOW ENEMIES", "Cost: 20", "Enemies 15% slower"},
+            {"CRIT CHANCE", "Cost: 22", "20% crit +2 damage"}
+        };
+        
+        int itemW=180, itemH=80, totalW=itemW*3+40, startX=(GameFrame.WIDTH-totalW)/2, itemY=160;
+        for (int i=0; i<items.length; i++) {
+            int ix = startX + (i%3)*(itemW+20);
+            int iy = itemY + (i/3)*(itemH+20);
+            int cost = Integer.parseInt(items[i][1].split(": ")[1]);
+            boolean canAfford = coins >= cost;
+            drawInGameShopItem(g, ix, iy, itemW, itemH, items[i][0], cost, items[i][2], canAfford, i+1);
+        }
+    }
+    
+    private void drawInGameShopItem(Graphics2D g, int x, int y, int w, int h, String name, int cost, String desc, boolean canAfford, int number) {
+        // Border
+        g.setColor(canAfford ? new Color(100,150,100) : new Color(80,80,80));
+        g.fillRect(x,y,w,h);
+        g.setColor(canAfford ? new Color(150,200,150) : new Color(120,120,120));
+        g.drawRect(x,y,w,h);
+        
+        // Number
+        g.setFont(new Font("Monospaced",Font.BOLD,14));
+        g.setColor(canAfford ? Color.WHITE : Color.GRAY);
+        g.drawString(""+number, x+10, y+20);
+        
+        // Name
+        g.setFont(new Font("Monospaced",Font.BOLD,12));
+        g.drawString(name, x+30, y+20);
+        
+        // Description
+        g.setFont(new Font("Monospaced",Font.PLAIN,10));
+        g.drawString(desc, x+10, y+40);
+        
+        // Cost
+        g.setColor(canAfford ? new Color(255,215,0) : new Color(150,150,150));
+        String costStr = "$" + cost;
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(costStr, x + (w - fm.stringWidth(costStr))/2, y + h - 10);
+    }
+
+    private void buyInGameUpgrade(int index) {
+        int[] costs = {15, 12, 25, 18, 20, 22};
+        if (coins >= costs[index]) {
+            coins -= costs[index];
+            switch (index) {
+                case 0 -> player.damage += 1; // DAMAGE +1
+                case 1 -> player.fireRateTicks = Math.max(8, player.fireRateTicks - 5); // FIRE RATE +
+                case 2 -> player.multishot = true; // TRIPLE SHOT
+                case 3 -> player.armor += 5; // ARMOR +5
+                case 4 -> player.enemySlowPercent += 0.15f; // SLOW ENEMIES
+                case 5 -> player.critChance += 0.15f; // CRIT CHANCE
+            }
+            SoundManager.upgradeSelect();
+            // Add floating text for purchase
+            spawnFloatText(GameFrame.WIDTH/2, GameFrame.HEIGHT/2, "UPGRADE PURCHASED!", 100, 255, 100);
         }
     }
 
@@ -819,7 +906,9 @@ private void drawMenu(Graphics2D g) {
         g.setFont(new Font("Monospaced",Font.BOLD,13));
         String cs="$ "+coins;
         fm=g.getFontMetrics();
-        g.setColor(new Color(255,215,40)); g.drawString(cs,134,31);
+        g.setColor(new Color(255,215,40)); g.drawString(cs,134,25);
+        g.setFont(new Font("Monospaced",Font.PLAIN,10));
+        g.setColor(new Color(200,200,150)); g.drawString("B: Shop",134,40);
 
         // ── Bottom HUD bar ──
         g.setColor(new Color(0,0,0,170)); g.fillRect(0,GameFrame.HEIGHT-48,GameFrame.WIDTH,48);
@@ -1096,6 +1185,16 @@ private void drawMenu(Graphics2D g) {
             if(k==KeyEvent.VK_D||k==KeyEvent.VK_RIGHT) player.right=true;
             if(k==KeyEvent.VK_SPACE) player.tryDash();
             if(k==KeyEvent.VK_E) player.trySuperPower();
+            if(k==KeyEvent.VK_B) state = GameState.IN_GAME_SHOP; // Open in-game shop
+        }
+        if (state==GameState.IN_GAME_SHOP) {
+            if(k==KeyEvent.VK_1) buyInGameUpgrade(0);
+            if(k==KeyEvent.VK_2) buyInGameUpgrade(1);
+            if(k==KeyEvent.VK_3) buyInGameUpgrade(2);
+            if(k==KeyEvent.VK_4) buyInGameUpgrade(3);
+            if(k==KeyEvent.VK_5) buyInGameUpgrade(4);
+            if(k==KeyEvent.VK_6) buyInGameUpgrade(5);
+            if(k==KeyEvent.VK_ESCAPE) { state = GameState.PLAYING; return; } // Close shop
         }
         if (state==GameState.UPGRADE) {
             if(k==KeyEvent.VK_1) applyUpgrade(0);
