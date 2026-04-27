@@ -257,11 +257,19 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
 
     // ── Background helper ──
     private void drawBackground(Graphics2D g) {
-        g.setColor(new Color(38, 65, 38));
+        // Gradient background (military theme)
+        g.setColor(new Color(50, 80, 50));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
-        g.setColor(new Color(42, 70, 42));
-        for (int x = 0; x < GameFrame.WIDTH;  x += 50) g.drawLine(x, 0, x, GameFrame.HEIGHT);
-        for (int y = 0; y < GameFrame.HEIGHT; y += 50) g.drawLine(0, y, GameFrame.WIDTH, y);
+        
+        // Grid pattern
+        g.setColor(new Color(60, 95, 60));
+        g.setStroke(new BasicStroke(0.5f));
+        for (int x = 0; x < GameFrame.WIDTH;  x += 40) g.drawLine(x, 0, x, GameFrame.HEIGHT);
+        for (int y = 0; y < GameFrame.HEIGHT; y += 40) g.drawLine(0, y, GameFrame.WIDTH, y);
+        
+        // Darker overlay for depth
+        g.setColor(new Color(20, 35, 20, 40));
+        g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
     }
 
     // ── MENU Screen ──
@@ -377,63 +385,95 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         // HUD overlay
         drawHUD(g);
 
-        // Wave announcement banner
+        // Wave announcement banner with animation
         if (waveAnnounceTicks > 0) {
             float alpha = Math.min(1f, waveAnnounceTicks / 30f);
-            g.setColor(new Color(0, 0, 0, (int)(alpha * 160)));
-            g.fillRoundRect(GameFrame.WIDTH / 2 - 160, GameFrame.HEIGHT / 2 - 35, 320, 70, 20, 20);
-            g.setFont(new Font("Arial", Font.BOLD, 30));
-            g.setColor(new Color(255, 220, 50, (int)(alpha * 255)));
-            drawCentered(g, "WAVE " + waveManager.getCurrentWave() + "  INCOMING!", GameFrame.HEIGHT / 2 + 12);
+            
+            // Semi-transparent background
+            g.setColor(new Color(0, 0, 0, (int)(alpha * 180)));
+            g.fillRoundRect(GameFrame.WIDTH / 2 - 200, GameFrame.HEIGHT / 2 - 50, 400, 100, 25, 25);
+            
+            // Decorative border
+            g.setColor(new Color(255, 200, 100, (int)(alpha * 255)));
+            g.setStroke(new BasicStroke(3));
+            g.drawRoundRect(GameFrame.WIDTH / 2 - 200, GameFrame.HEIGHT / 2 - 50, 400, 100, 25, 25);
+            
+            // Top and bottom accent lines
+            g.fillRect(GameFrame.WIDTH / 2 - 180, GameFrame.HEIGHT / 2 - 45, 360, 2);
+            g.fillRect(GameFrame.WIDTH / 2 - 180, GameFrame.HEIGHT / 2 + 43, 360, 2);
+            
+            // Wave text
+            g.setFont(new Font("Arial", Font.BOLD, 44));
+            g.setColor(new Color(255, 240, 100, (int)(alpha * 255)));
+            drawCentered(g, "WAVE " + waveManager.getCurrentWave(), GameFrame.HEIGHT / 2 - 5);
+            
+            g.setFont(new Font("Arial", Font.PLAIN, 20));
+            g.setColor(new Color(255, 180, 100, (int)(alpha * 220)));
+            drawCentered(g, "⚠ INCOMING! ⚠", GameFrame.HEIGHT / 2 + 25);
         }
     }
 
     // ── HUD (Heads-Up Display) ──
     private void drawHUD(Graphics2D g) {
-        // Top bar
-        g.setColor(new Color(0, 0, 0, 170));
+        // Top bar with gradient effect
+        g.setColor(new Color(0, 0, 0, 200));
         g.fillRect(0, 0, GameFrame.WIDTH, 50);
+        
+        // Top border line
+        g.setColor(new Color(100, 180, 100));
+        g.setStroke(new BasicStroke(2));
+        g.drawLine(0, 50, GameFrame.WIDTH, 50);
 
-        // Wave
-        g.setFont(new Font("Arial", Font.BOLD, 16));
-        g.setColor(new Color(255, 220, 50));
-        g.drawString("Wave: " + waveManager.getCurrentWave(), 16, 32);
+        // Wave info (left)
+        g.setFont(new Font("Arial", Font.BOLD, 18));
+        g.setColor(new Color(255, 220, 80));
+        g.drawString("◆ Wave: " + waveManager.getCurrentWave(), 16, 32);
 
-        // Kills (score) - centered
-        g.setColor(Color.WHITE);
-        drawCentered(g, "Kills: " + score, 32);
+        // Kills/Score (center)
+        g.setColor(new Color(150, 255, 150));
+        String killsText = "Kills: " + score;
+        int killsW = g.getFontMetrics().stringWidth(killsText);
+        g.drawString(killsText, GameFrame.WIDTH / 2 - killsW / 2, 32);
 
-        // Enemy count - right
-        g.setColor(new Color(255, 140, 140));
-        String eCount = "Enemies: " + enemies.size();
+        // Enemy count (right)
+        g.setColor(new Color(255, 160, 160));
+        String eCount = "Enemies: " + enemies.size() + " ◆";
         FontMetrics fm = g.getFontMetrics();
         g.drawString(eCount, GameFrame.WIDTH - fm.stringWidth(eCount) - 14, 32);
 
-        // HP bar (bottom left)
-        int bx = 16, by = GameFrame.HEIGHT - 36;
-        int bw = 180, bh = 20;
+        // HP bar with enhanced styling (bottom left)
+        int bx = 16, by = GameFrame.HEIGHT - 38;
+        int bw = 200, bh = 24;
 
-        g.setColor(new Color(80, 0, 0));
+        // HP bar background
+        g.setColor(new Color(60, 20, 20));
         g.fillRoundRect(bx, by, bw, bh, 8, 8);
+        
+        // HP bar border
+        g.setColor(new Color(150, 60, 60));
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(bx, by, bw, bh, 8, 8);
 
+        // HP fill with color gradient based on health
         float ratio = (float) player.hp / player.maxHp;
-        Color hpColor = ratio > 0.5f ? new Color(60, 200, 60)
-                      : ratio > 0.25f ? new Color(220, 160, 0)
-                      : new Color(200, 40, 40);
+        Color hpColor = ratio > 0.66f ? new Color(80, 220, 80)
+                      : ratio > 0.33f ? new Color(255, 200, 80)
+                      : new Color(255, 80, 80);
         g.setColor(hpColor);
-        g.fillRoundRect(bx, by, (int)(bw * ratio), bh, 8, 8);
+        g.fillRoundRect(bx + 2, by + 2, (int)((bw - 4) * ratio), bh - 4, 6, 6);
 
-        g.setColor(new Color(200, 200, 200));
-        g.setFont(new Font("Arial", Font.BOLD, 12));
-        g.drawString("HP  " + player.hp + " / " + player.maxHp, bx + 8, by + 14);
+        // HP text
+        g.setFont(new Font("Arial", Font.BOLD, 14));
+        g.setColor(Color.WHITE);
+        g.drawString("❤ HP: " + player.hp + " / " + player.maxHp, bx + 8, by + 18);
 
-        // Incoming warning
+        // Incoming wave warning (bottom right)
         if (!waveManager.isAllSpawned()) {
-            g.setFont(new Font("Arial", Font.PLAIN, 13));
-            g.setColor(new Color(255, 160, 50));
-            String warn = "Incoming: " + waveManager.getRemainingToSpawn();
+            g.setFont(new Font("Arial", Font.BOLD, 14));
+            g.setColor(new Color(255, 180, 80));
+            String warn = "⚠ Incoming: " + waveManager.getRemainingToSpawn();
             fm = g.getFontMetrics();
-            g.drawString(warn, GameFrame.WIDTH - fm.stringWidth(warn) - 14, GameFrame.HEIGHT - 18);
+            g.drawString(warn, GameFrame.WIDTH - fm.stringWidth(warn) - 14, GameFrame.HEIGHT - 20);
         }
     }
 
@@ -441,72 +481,88 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private void drawUpgrade(Graphics2D g) {
         drawBackground(g);
 
-        // Dark overlay
-        g.setColor(new Color(0, 0, 0, 185));
+        // Dark semi-transparent overlay
+        g.setColor(new Color(0, 0, 0, 200));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
-        // Header
-        g.setFont(new Font("Arial", Font.BOLD, 34));
-        g.setColor(new Color(255, 215, 40));
-        drawCentered(g, "WAVE " + (waveManager.getCurrentWave() - 1) + " CLEARED!", 110);
+        // Decorative top bar
+        g.setColor(new Color(100, 180, 100));
+        g.fillRect(0, 0, GameFrame.WIDTH, 8);
 
-        g.setFont(new Font("Arial", Font.PLAIN, 18));
+        // Header
+        g.setFont(new Font("Arial", Font.BOLD, 42));
+        g.setColor(new Color(150, 255, 150));
+        drawCentered(g, "★ WAVE " + (waveManager.getCurrentWave() - 1) + " CLEARED! ★", 90);
+
+        g.setFont(new Font("Arial", Font.PLAIN, 24));
         g.setColor(new Color(220, 220, 220));
-        drawCentered(g, "Choose 1 upgrade:", 148);
+        drawCentered(g, "Choose 1 Upgrade to Continue:", 140);
 
         // Three upgrade cards
-        int cardW = 200, cardH = 130;
-        int totalW = cardW * 3 + 40;
+        int cardW = 220, cardH = 150;
+        int totalW = cardW * 3 + 50;
         int startX = (GameFrame.WIDTH - totalW) / 2;
-        int cardY  = 180;
+        int cardY  = 170;
 
         for (int i = 0; i < 3; i++) {
-            int cx = startX + i * (cardW + 20);
+            int cx = startX + i * (cardW + 25);
             drawUpgradeCard(g, cx, cardY, cardW, cardH, upgradeOptions[i], i + 1);
         }
 
         // Key hint
-        g.setFont(new Font("Arial", Font.PLAIN, 15));
-        g.setColor(Color.LIGHT_GRAY);
-        drawCentered(g, "Press  1 ,  2 ,  or  3  to choose", cardY + cardH + 40);
+        g.setFont(new Font("Arial", Font.BOLD, 16));
+        g.setColor(new Color(150, 255, 150));
+        drawCentered(g, "Press  1  •  2  •  or  3  to choose", cardY + cardH + 35);
 
         // Current stats bar
-        g.setFont(new Font("Arial", Font.PLAIN, 14));
-        g.setColor(new Color(160, 210, 160));
-        String stats = "HP: " + player.hp + "/" + player.maxHp
-                + "   DMG: " + player.damage
-                + "   SPD: " + String.format("%.1f", player.speed)
-                + "   Kills: " + score;
-        drawCentered(g, stats, GameFrame.HEIGHT - 25);
+        g.setColor(new Color(20, 40, 20, 190));
+        g.fillRoundRect(60, GameFrame.HEIGHT - 65, GameFrame.WIDTH - 120, 55, 10, 10);
+        g.setColor(new Color(150, 220, 150));
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(60, GameFrame.HEIGHT - 65, GameFrame.WIDTH - 120, 55, 10, 10);
+
+        g.setFont(new Font("Arial", Font.BOLD, 14));
+        g.setColor(new Color(180, 255, 150));
+        String stats = "  ❤ HP: " + player.hp + "/" + player.maxHp
+                + "   ⚔ DMG: " + player.damage
+                + "   ⚡ SPD: " + String.format("%.1f", player.speed)
+                + "   💀 Kills: " + score + "  ";
+        drawCentered(g, stats, GameFrame.HEIGHT - 35);
     }
 
     private void drawUpgradeCard(Graphics2D g, int cx, int cy, int w, int h, String text, int key) {
-        // Card background
-        g.setColor(new Color(20, 40, 75));
-        g.fillRoundRect(cx, cy, w, h, 14, 14);
+        // Gradient card background
+        g.setColor(new Color(30, 60, 100));
+        g.fillRoundRect(cx, cy, w, h, 16, 16);
 
-        // Border
-        g.setColor(new Color(70, 120, 210));
-        g.setStroke(new BasicStroke(2));
-        g.drawRoundRect(cx, cy, w, h, 14, 14);
-        g.setStroke(new BasicStroke(1));
+        // Border with glow effect
+        g.setColor(new Color(100, 180, 220));
+        g.setStroke(new BasicStroke(3));
+        g.drawRoundRect(cx, cy, w, h, 16, 16);
+        
+        // Hover area - top accent
+        g.setColor(new Color(80, 150, 200, 100));
+        g.fillRoundRect(cx + 2, cy + 2, w - 4, 30, 14, 14);
 
         // Split tag and description
         String[] parts = text.split(": ", 2);
         String tag  = parts.length > 0 ? parts[0] : text;
         String desc = parts.length > 1 ? parts[1] : "";
 
-        g.setFont(new Font("Arial", Font.BOLD, 15));
-        g.setColor(new Color(255, 220, 80));
+        // Tag (upgrade name)
+        g.setFont(new Font("Arial", Font.BOLD, 17));
+        g.setColor(new Color(255, 240, 100));
         int tagW = g.getFontMetrics().stringWidth(tag);
-        g.drawString(tag, cx + (w - tagW) / 2, cy + 38);
+        g.drawString(tag, cx + (w - tagW) / 2, cy + 28);
 
+        // Description text
         g.setFont(new Font("Arial", Font.PLAIN, 13));
-        g.setColor(Color.WHITE);
+        g.setColor(new Color(230, 240, 255));
+        
         // Word-wrap description
         String[] words = desc.split(" ");
         StringBuilder line = new StringBuilder();
-        int lineY = cy + 62;
+        int lineY = cy + 55;
         for (String word : words) {
             String test = line + word + " ";
             if (g.getFontMetrics().stringWidth(test) > w - 20 && !line.isEmpty()) {
@@ -522,37 +578,78 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             g.drawString(l, cx + (w - g.getFontMetrics().stringWidth(l)) / 2, lineY);
         }
 
-        // Key badge
-        g.setFont(new Font("Arial", Font.BOLD, 16));
-        g.setColor(new Color(255, 215, 40));
+        // Key badge (at bottom)
+        g.setFont(new Font("Arial", Font.BOLD, 18));
+        g.setColor(new Color(255, 240, 100));
         String badge = "[ " + key + " ]";
         int bw = g.getFontMetrics().stringWidth(badge);
-        g.drawString(badge, cx + (w - bw) / 2, cy + h - 12);
+        
+        // Badge background
+        g.setColor(new Color(50, 80, 120));
+        g.fillRoundRect(cx + (w - bw - 10) / 2, cy + h - 28, bw + 10, 22, 8, 8);
+        g.setColor(new Color(150, 200, 255));
+        g.setStroke(new BasicStroke(1.5f));
+        g.drawRoundRect(cx + (w - bw - 10) / 2, cy + h - 28, bw + 10, 22, 8, 8);
+        
+        g.setColor(new Color(255, 240, 100));
+        g.drawString(badge, cx + (w - bw) / 2, cy + h - 9);
     }
 
     // ── GAME OVER Screen ──
     private void drawGameOver(Graphics2D g) {
         drawBackground(g);
-        g.setColor(new Color(0, 0, 0, 185));
+        g.setColor(new Color(0, 0, 0, 210));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
-        g.setFont(new Font("Arial", Font.BOLD, 66));
-        g.setColor(new Color(210, 40, 40));
-        drawCentered(g, "GAME OVER", 215);
+        // Main title box
+        g.setColor(new Color(80, 20, 20, 200));
+        g.fillRoundRect(100, 100, 600, 100, 20, 20);
+        g.setColor(new Color(255, 80, 80));
+        g.setStroke(new BasicStroke(3));
+        g.drawRoundRect(100, 100, 600, 100, 20, 20);
+
+        g.setFont(new Font("Arial", Font.BOLD, 72));
+        g.setColor(new Color(255, 100, 100));
+        drawCentered(g, "MISSION FAILED", 165);
+
+        // Stats boxes
+        g.setColor(new Color(30, 50, 30, 190));
+        g.fillRoundRect(120, 230, 560, 120, 15, 15);
+        g.setColor(new Color(150, 220, 150));
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(120, 230, 560, 120, 15, 15);
 
         g.setFont(new Font("Arial", Font.BOLD, 28));
-        g.setColor(Color.WHITE);
-        drawCentered(g, "Total Kills : " + score, 290);
-        drawCentered(g, "Reached Wave : " + waveManager.getCurrentWave(), 330);
+        g.setColor(new Color(255, 200, 100));
+        drawCentered(g, "💀 Total Kills: " + score, 265);
+        drawCentered(g, "🌊 Reached Wave: " + waveManager.getCurrentWave(), 305);
+
+        // Best score highlight
+        g.setColor(new Color(80, 60, 20, 190));
+        g.fillRoundRect(140, 365, 520, 60, 12, 12);
+        g.setColor(new Color(255, 210, 80));
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(140, 365, 520, 60, 12, 12);
+
+        g.setFont(new Font("Arial", Font.BOLD, 26));
+        g.setColor(new Color(255, 230, 100));
+        drawCentered(g, "⭐ BEST SCORE: " + highScore + " KILLS ⭐", 400);
+
+        // Action buttons
+        g.setColor(new Color(30, 30, 30, 190));
+        g.fillRoundRect(150, 450, 500, 60, 12, 12);
+        g.setColor(new Color(100, 150, 100));
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(150, 450, 500, 60, 12, 12);
 
         g.setFont(new Font("Arial", Font.BOLD, 20));
-        g.setColor(new Color(255, 210, 50));
-        drawCentered(g, "Best Score : " + highScore + " kills", 380);
+        g.setColor(new Color(150, 255, 150));
+        drawCentered(g, "[ ENTER ] Try Again  •  [ ESC ] Back to Menu", 487);
 
-        g.setFont(new Font("Arial", Font.PLAIN, 18));
-        g.setColor(Color.LIGHT_GRAY);
-        drawCentered(g, "[ ENTER ]  Play Again", 440);
-        drawCentered(g, "[ ESC ]    Main Menu",  472);
+        // Encouragement message
+        g.setFont(new Font("Arial", Font.ITALIC, 14));
+        g.setColor(new Color(180, 180, 180));
+        drawCentered(g, "Good effort, soldier! Try again to beat your record.", GameFrame.HEIGHT - 30);
     }
 
     // ── Utility: center a string horizontally ──
