@@ -12,6 +12,12 @@ public class WaveManager {
     private static final int WAVE_DURATION = 60 * 30; // 30s per wave
     private final Random rand = new Random();
 
+    private float speedBoost = 0f;
+    private boolean eliteBoost = false;
+
+    public void setSpeedBoost(float boost) { this.speedBoost = boost; }
+    public void setEliteBoost(boolean boost) { this.eliteBoost = boost; }
+
     public void update(List<Enemy> enemies) {
         waveTicks++;
         if (waveTicks >= WAVE_DURATION) { currentWave++; waveTicks = 0; }
@@ -31,13 +37,13 @@ public class WaveManager {
             default->{ ex = GameFrame.WIDTH + 5;  ey = 55 + rand.nextFloat() * (GameFrame.HEIGHT - 60); }
         }
         int   hp    = 1 + (currentWave - 1) / 3;
-        float speed = 1.0f + currentWave * 0.10f;
-        boolean elite = currentWave >= 3 && rand.nextInt(8) == 0;
+        float speed = 1.0f + currentWave * 0.10f + speedBoost;
+        boolean elite = (currentWave >= 3 || eliteBoost) && rand.nextInt(8) == 0;
         if (elite) { hp *= 3; speed *= 0.75f; }
         enemies.add(new Enemy(ex, ey, hp, speed, elite));
     }
 
     public int   getCurrentWave()   { return currentWave; }
     public float getWaveProgress()  { return (float) waveTicks / WAVE_DURATION; }
-    public void  reset()            { currentWave = 1; waveTicks = 0; spawnCooldown = 40; }
+    public void  reset()            { currentWave = 1; waveTicks = 0; spawnCooldown = 40; speedBoost = 0f; eliteBoost = false; }
 }
