@@ -12,7 +12,7 @@ import java.util.List;
 public class GamePanel extends JPanel implements KeyListener, MouseListener, MouseMotionListener {
 
     // ── States ───────────────────────────────────────────────────
-    public enum GameState { MENU, PLAYING, UPGRADE, GAME_OVER }
+    public enum GameState { CHARACTER_SELECT, SHOP, MENU, PLAYING, UPGRADE, GAME_OVER }
     private GameState state = GameState.MENU;
 
     // ── Game Objects ─────────────────────────────────────────────
@@ -20,6 +20,11 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private List<Enemy>  enemies;
     private List<Bullet> bullets;
     private WaveManager  waveManager;
+    
+    // ── Character & Shop ─────────────────────────────────────────
+    private Player.CharacterType selectedCharacter = Player.CharacterType.SOLDIER;
+    private int shopCoins = 0;  // Coins earned from previous run
+    private boolean[] shopBought = new boolean[4]; // Track bought perks
 
     // ── Economy & Progression ────────────────────────────────────
     private int   coins      = 0;
@@ -78,13 +83,26 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private void initObjects() {
         float cx = GameFrame.WIDTH/2f - Player.SIZE/2f;
         float cy = GameFrame.HEIGHT/2f - Player.SIZE/2f;
-        player      = new Player(cx, cy);
+        player      = new Player(cx, cy, selectedCharacter);
         enemies     = new ArrayList<>();
         bullets     = new ArrayList<>();
         waveManager = new WaveManager();
         coins = 0; totalKills = 0; xp = 0; level = 1; xpToNext = 10;
         survivalTicks = 0; damageFlashTicks = 0; waveFlashTicks = 0; lastWaveShown = 0;
         particles.clear(); floatTexts.clear();
+        // Reset new upgrades
+        player.enemySlowPercent = 0f;
+        player.critChance = 0f;
+        player.coinMultiplier = 1.0f;
+        player.regenTicksLeft = 0;
+        player.bulletSpreadAngle = 0f;
+        
+        // Apply shop perks if bought
+        if (shopBought[0]) player.maxHp += 2;      // Extra HP perk
+        if (shopBought[1]) player.damage += 1;     // Damage perk
+        if (shopBought[2]) player.speed += 0.5f;   // Speed perk
+        if (shopBought[3]) player.coinMultiplier += 0.25f; // Coin perk
+        player.hp = player.maxHp;
     }
 
     private void startNewGame() { initObjects(); state = GameState.PLAYING; }
@@ -97,7 +115,14 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         animTick++;
         survivalTicks++;
 
-        // Tick particles
+        // Regen tick
+        if (player.regenTicksLeft > 0) {
+            player.regenTicksLeft--;
+            if (player.regenTicksLeft % 300 == 0) { // Every 5 seconds at 60 FPS
+                player.hp = Math.min(player.maxHp, player.hp + 1);
+                spawnFloatText(player.getCenterX(), player.getCenterY()-25, "+1", 100,255,100);
+            }
+        }
         particles.removeIf(p -> p[4] <= 0);
         for (float[] p : particles) { p[0]+=p[2]; p[1]+=p[3]; p[2]*=0.91f; p[3]*=0.91f; p[4]--; }
 
@@ -129,11 +154,14 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                     deadBullets.add(b);
                     if (e.hp <= 0) {
                         deadEnemies.add(e);
-                        totalKills++; killFlashTicks = 10; coins += e.coinDrop;
+                        totalKills++; killFlashTicks = 10; 
+                        int baseCoins = e.coinDrop;
+                        int earnedCoins = (int)(baseCoins * player.coinMultiplier);
+                        coins += earnedCoins;
                         gainXP(e.elite ? 5 : 1);
                         SoundManager.enemyDie();
                         spawnDeathParticles(e);
-                        spawnFloatText(e.getCenterX(), e.getCenterY()-10, "+" + e.coinDrop, 255,215,0);
+                        spawnFloatText(e.getCenterX(), e.getCenterY()-10, "+" + earnedCoins, 255,215,0);
                     } else {
                         SoundManager.enemyHit();
                         spawnHitSparks(e);
@@ -148,6 +176,8 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         // Enemy → player collision
         List<Enemy> hitPlayer = new ArrayList<>();
         for (Enemy e : enemies) {
+            float effectiveSpeed = e.speed * (1f - player.enemySlowPercent);
+            e.speed = effectiveSpeed;
             e.update(player.getCenterX(), player.getCenterY());
             if (e.getBounds().intersects(player.getBounds())) {
                 player.takeDamage(e.elite ? 2 : 1);
@@ -168,6 +198,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         // Death
         if (player.hp <= 0) {
             if (totalKills > highScore) highScore = totalKills;
+            shopCoins = coins; // Save coins for shop
             state = GameState.GAME_OVER;
             SoundManager.gameOver();
         }
@@ -189,13 +220,17 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         float dx=mouseX-player.getCenterX(), dy=mouseY-player.getCenterY();
         float len=(float)Math.sqrt(dx*dx+dy*dy); if(len==0)return;
         float nx=dx/len, ny=dy/len;
-        bullets.add(new Bullet(player.getCenterX(),player.getCenterY(),nx,ny,player.damage));
+        
+        int baseDamage = player.damage;
+        if (Math.random() < player.critChance) baseDamage += 2;
+        
+        bullets.add(new Bullet(player.getCenterX(),player.getCenterY(),nx,ny,baseDamage));
         if (player.multishot) {
-            float a=0.28f;
+            float a=0.28f + player.bulletSpreadAngle;
             float ca=(float)Math.cos(a),sa=(float)Math.sin(a);
-            bullets.add(new Bullet(player.getCenterX(),player.getCenterY(),nx*ca-ny*sa,nx*sa+ny*ca,player.damage));
+            bullets.add(new Bullet(player.getCenterX(),player.getCenterY(),nx*ca-ny*sa,nx*sa+ny*ca,baseDamage));
             float cb=(float)Math.cos(-a),sb=(float)Math.sin(-a);
-            bullets.add(new Bullet(player.getCenterX(),player.getCenterY(),nx*cb-ny*sb,nx*sb+ny*cb,player.damage));
+            bullets.add(new Bullet(player.getCenterX(),player.getCenterY(),nx*cb-ny*sb,nx*sb+ny*cb,baseDamage));
         }
     }
 
@@ -226,12 +261,17 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private void prepareUpgrades() {
         List<String> pool = new ArrayList<>();
         pool.add("HEAL|Restore 3 HP|<3");
-        pool.add("HP UP|+3 Max Health (full heal)|HP");
+        pool.add("HP UP|+3 Max Health|HP");
         pool.add("SWIFT|Move Speed +0.8|>>");
         pool.add("POWER|Bullet Damage +1|**");
         pool.add("RAPID|Faster Fire Rate|!!");
-        if (!player.multishot) pool.add("MULTI|Triple Shot|:::"); 
-        pool.add("ARMOR|Reduce next 5 hits|[]");
+        if (!player.multishot) pool.add("MULTI|Triple Shot|:::");
+        pool.add("ARMOR|Block next 5 hits|[]");
+        pool.add("SLOW|Enemies 20% slower|--");
+        pool.add("CRIT|20% crit +2 dmg|^^");
+        pool.add("COINS|+50% gold earned|$");
+        pool.add("REGEN|Heal 1 HP each 5s|+-");
+        pool.add("WIDE|Bullet spread wider|><");
         Collections.shuffle(pool);
         for (int i=0;i<3;i++) upgradeOptions[i] = pool.get(i);
     }
@@ -247,6 +287,11 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             case "RAPID" -> player.fireRateTicks = Math.max(8, player.fireRateTicks - 5);
             case "MULTI" -> player.multishot = true;
             case "ARMOR" -> player.armor += 5;
+            case "SLOW"  -> player.enemySlowPercent += 0.15f;
+            case "CRIT"  -> player.critChance += 0.15f;
+            case "COINS" -> player.coinMultiplier += 0.3f;
+            case "REGEN" -> player.regenTicksLeft = Integer.MAX_VALUE; // infinite regen at 5s intervals
+            case "WIDE"  -> player.bulletSpreadAngle += 0.15f;
         }
         state = GameState.PLAYING;
         SoundManager.waveStart();
@@ -263,10 +308,144 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         switch (state) {
-            case MENU      -> drawMenu(g2);
-            case PLAYING   -> drawGame(g2);
-            case UPGRADE   -> drawUpgrade(g2);
-            case GAME_OVER -> drawGameOver(g2);
+            case CHARACTER_SELECT -> drawCharacterSelect(g2);
+            case SHOP            -> drawShop(g2);
+            case MENU            -> drawMenu(g2);
+            case PLAYING         -> drawGame(g2);
+            case UPGRADE         -> drawUpgrade(g2);
+            case GAME_OVER       -> drawGameOver(g2);
+        }
+    }
+
+    // ── CHARACTER SELECT ──
+    
+    private void drawCharacterSelect(Graphics2D g) {
+        // Dark bg
+        g.setColor(new Color(5,8,12)); g.fillRect(0,0,GameFrame.WIDTH,GameFrame.HEIGHT);
+        
+        g.setFont(new Font("Monospaced",Font.BOLD,40));
+        FontMetrics fm=g.getFontMetrics(); String title="SELECT CHARACTER";
+        g.setColor(new Color(80,255,120)); g.drawString(title,(GameFrame.WIDTH-fm.stringWidth(title))/2,60);
+        
+        // Character cards
+        Player.CharacterType[] chars = Player.CharacterType.values();
+        int cardW=140, cardH=180, totalW=cardW*4+60, startX=(GameFrame.WIDTH-totalW)/2, cardY=120;
+        
+        for (int i=0; i<chars.length; i++) {
+            int cx = startX + i*(cardW+20);
+            drawCharacterCard(g, cx, cardY, cardW, cardH, chars[i], i+1);
+        }
+        
+        g.setFont(new Font("Monospaced",Font.PLAIN,13)); g.setColor(new Color(90,140,100));
+        String hint="Press [ 1 ] [ 2 ] [ 3 ] [ 4 ]  or  click a character"; fm=g.getFontMetrics();
+        g.drawString(hint,(GameFrame.WIDTH-fm.stringWidth(hint))/2,cardY+cardH+40);
+    }
+    
+    private void drawCharacterCard(Graphics2D g, int x, int y, int w, int h, Player.CharacterType chr, int key) {
+        // Card bg
+        g.setColor(new Color(12,28,18)); g.fillRoundRect(x,y,w,h,12,12);
+        g.setColor(new Color(40,140,60,140)); g.setStroke(new BasicStroke(2)); 
+        g.drawRoundRect(x,y,w,h,12,12); g.setStroke(new BasicStroke(1));
+        
+        // Color by character
+        Color chrColor = switch(chr) {
+            case SOLDIER -> new Color(40, 110, 220);
+            case MAGE -> new Color(150, 80, 220);
+            case TANK -> new Color(220, 150, 40);
+            case ROGUE -> new Color(100, 200, 80);
+        };
+        
+        // Character name
+        g.setFont(new Font("Monospaced",Font.BOLD,16)); 
+        FontMetrics fm=g.getFontMetrics();
+        g.setColor(chrColor); String name=chr.toString();
+        g.drawString(name,x+(w-fm.stringWidth(name))/2,y+35);
+        
+        // Stats
+        String[] stats = switch(chr) {
+            case SOLDIER -> new String[]{"HP: 5", "DMG: 1", "SPD: 3.0"};
+            case MAGE -> new String[]{"HP: 3", "DMG: 2", "SPD: 3.5"};
+            case TANK -> new String[]{"HP: 8", "DMG: 1", "SPD: 2.0"};
+            case ROGUE -> new String[]{"HP: 4", "DMG: 1", "SPD: 4.0"};
+        };
+        
+        g.setFont(new Font("Monospaced",Font.PLAIN,11));
+        g.setColor(new Color(130,170,140));
+        for (int i=0; i<stats.length; i++) {
+            g.drawString(stats[i],x+10,y+60+i*18);
+        }
+        
+        // Key badge
+        g.setColor(new Color(30,110,50,35)); g.fillRoundRect(x+w/2-20,y+h-28,40,20,6,6);
+        g.setFont(new Font("Monospaced",Font.BOLD,14)); fm=g.getFontMetrics();
+        g.setColor(new Color(60,160,80));
+        String badge="["+key+"]"; g.drawString(badge,x+(w-fm.stringWidth(badge))/2,y+h-12);
+    }
+    
+    // ── SHOP ──
+    
+    private void drawShop(Graphics2D g) {
+        g.setColor(new Color(5,8,12)); g.fillRect(0,0,GameFrame.WIDTH,GameFrame.HEIGHT);
+        
+        g.setFont(new Font("Monospaced",Font.BOLD,36));
+        FontMetrics fm=g.getFontMetrics(); String title="LOADOUT SHOP";
+        g.setColor(new Color(255,215,40)); g.drawString(title,(GameFrame.WIDTH-fm.stringWidth(title))/2,60);
+        
+        g.setFont(new Font("Monospaced",Font.PLAIN,13)); 
+        g.setColor(new Color(180,180,120));
+        g.drawString("Coins from last run: "+shopCoins,(GameFrame.WIDTH-150)/2,100);
+        
+        // Shop items
+        String[][] items = {
+            {"EXTRA HP", "Cost: 30", "Max HP +2"},
+            {"POWER", "Cost: 25", "Damage +1"},
+            {"SWIFT", "Cost: 20", "Speed +0.5"},
+            {"FORTUNE", "Cost: 35", "Coins +25%"}
+        };
+        
+        int itemW=200, itemH=100, totalW=itemW*4+60, startX=(GameFrame.WIDTH-totalW)/2, itemY=150;
+        
+        for (int i=0; i<items.length; i++) {
+            int ix = startX + i*(itemW+20);
+            boolean bought = shopBought[i];
+            int cost = Integer.parseInt(items[i][1].split(": ")[1]);
+            boolean canAfford = shopCoins >= cost && !bought;
+            drawShopItem(g, ix, itemY, itemW, itemH, items[i][0], cost, items[i][2], canAfford, bought, i+1);
+        }
+        
+        g.setFont(new Font("Monospaced",Font.PLAIN,13)); g.setColor(new Color(90,140,100));
+        String hint="Click items to buy, then ENTER to play"; fm=g.getFontMetrics();
+        g.drawString(hint,(GameFrame.WIDTH-fm.stringWidth(hint))/2,itemY+itemH+50);
+        
+        g.setFont(new Font("Monospaced",Font.BOLD,16));
+        g.setColor(new Color(80,255,120)); g.drawString("[ PRESS ENTER ]",GameFrame.WIDTH/2-80,GameFrame.HEIGHT-50);
+    }
+    
+    private void drawShopItem(Graphics2D g, int x, int y, int w, int h, String name, int cost, String desc, boolean affordable, boolean bought, int key) {
+        // Card
+        g.setColor(bought ? new Color(30,60,30) : new Color(12,28,18)); 
+        g.fillRoundRect(x,y,w,h,12,12);
+        
+        Color cardColor = bought ? new Color(80,200,80) : affordable ? new Color(40,140,60) : new Color(80,80,80);
+        g.setColor(cardColor); g.setStroke(new BasicStroke(2)); 
+        g.drawRoundRect(x,y,w,h,12,12); g.setStroke(new BasicStroke(1));
+        
+        // Name
+        g.setFont(new Font("Monospaced",Font.BOLD,14)); 
+        FontMetrics fm=g.getFontMetrics();
+        g.setColor(cardColor); g.drawString(name,x+(w-fm.stringWidth(name))/2,y+25);
+        
+        // Desc
+        g.setFont(new Font("Monospaced",Font.PLAIN,11));
+        g.setColor(new Color(130,170,140)); g.drawString(desc,x+10,y+50);
+        
+        // Cost or BOUGHT
+        g.setFont(new Font("Monospaced",Font.BOLD,12));
+        if (bought) {
+            g.setColor(new Color(100,255,100)); g.drawString("OWNED",x+(w-fm.stringWidth("OWNED"))/2,y+h-15);
+        } else {
+            g.setColor(affordable ? new Color(255,215,0) : new Color(100,100,100));
+            String costStr="$"+cost; g.drawString(costStr,x+(w-fm.stringWidth(costStr))/2,y+h-15);
         }
     }
 
@@ -286,76 +465,125 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     }
 
     // ── MENU ──
+private void drawMenu(Graphics2D g) {
+    int W = GameFrame.WIDTH, H = GameFrame.HEIGHT;
 
-    private void drawMenu(Graphics2D g) {
-        // Dark bg
-        g.setColor(new Color(5,8,12)); g.fillRect(0,0,GameFrame.WIDTH,GameFrame.HEIGHT);
-        // Stars
-        long t = System.currentTimeMillis();
-        for (int i=0;i<80;i++) {
-            int sx=(int)((i*137+43)%GameFrame.WIDTH), sy=(int)((i*97+17)%(GameFrame.HEIGHT-80));
-            int a=(int)(120+100*Math.sin(t*0.001+i*0.7));
-            g.setColor(new Color(200,200,255,a)); g.fillRect(sx,sy,1,1);
-        }
-        // Floating embers
-        for (int i=0;i<14;i++) {
-            double ox=((t*(0.01+i*0.003)+i*137)%GameFrame.WIDTH);
-            double oy=80+((t*(0.006+i*0.002)+i*79)%(GameFrame.HEIGHT-130));
-            int a=(int)(60+50*Math.sin(t*0.002+i));
-            g.setColor(new Color(80,200,120,a)); int sz=1+(i%3); g.fillOval((int)ox,(int)oy,sz+1,sz+1);
-        }
+    g.setColor(new Color(8, 12, 10));
+    g.fillRect(0, 0, W, H);
 
-        // Title - pixel block style
-        g.setFont(new Font("Monospaced",Font.BOLD,52));
-        FontMetrics fm=g.getFontMetrics();
-        String t1="LONE SOLDIER", t2="LAST STAND";
-        // Shadow
-        g.setColor(new Color(0,180,80,40));
-        g.drawString(t1,(GameFrame.WIDTH-fm.stringWidth(t1))/2+3,143);
-        // Main
-        g.setColor(new Color(140,255,160));
-        g.drawString(t1,(GameFrame.WIDTH-fm.stringWidth(t1))/2,140);
+    // Dark grid (tactical map feel)
+    g.setColor(new Color(20, 35, 25, 80));
+    for (int x = 0; x < W; x += 40) g.drawLine(x, 0, x, H);
+    for (int y = 0; y < H; y += 40) g.drawLine(0, y, W, y);
 
-        g.setFont(new Font("Monospaced",Font.BOLD,22));
-        fm=g.getFontMetrics();
-        g.setColor(new Color(80,160,100));
-        g.drawString(t2,(GameFrame.WIDTH-fm.stringWidth(t2))/2,172);
+    // Diagonal lines
+    g.setColor(new Color(15, 30, 20, 40));
+    for (int i = -H; i < W + H; i += 60) g.drawLine(i, 0, i + H, H);
 
-        // Stats badge row
-        if (highScore > 0) {
-            g.setFont(new Font("Monospaced",Font.BOLD,13));
-            g.setColor(new Color(0,0,0,140)); g.fillRoundRect(GameFrame.WIDTH/2-110,188,220,24,6,6);
-            g.setColor(new Color(255,215,40));
-            String hs="Best: "+highScore+" kills"; fm=g.getFontMetrics();
-            g.drawString(hs,(GameFrame.WIDTH-fm.stringWidth(hs))/2,205);
-        }
-
-        // Controls panel
-        g.setColor(new Color(0,0,0,130)); g.fillRoundRect(230,218,340,145,10,10);
-        g.setColor(new Color(40,120,60,160)); g.setStroke(new BasicStroke(1)); g.drawRoundRect(230,218,340,145,10,10); g.setStroke(new BasicStroke(1));
-        String[][] ctrls={
-            {"WASD","Move"},{"Mouse","Aim"},{"Left Click","Shoot"},
-            {"1/2/3","Pick upgrade"},{"ESC","Menu"}
-        };
-        g.setFont(new Font("Monospaced",Font.PLAIN,13)); int ry=240;
-        for (String[] row:ctrls) {
-            g.setColor(new Color(100,220,120)); g.drawString(row[0],265,ry);
-            g.setColor(new Color(160,200,160)); g.drawString(row[1],390,ry); ry+=22;
-        }
-
-        // Enter prompt
-        double ep=Math.sin(animTick*0.07)*0.5+0.5;
-        g.setFont(new Font("Monospaced",Font.BOLD,17));
-        fm=g.getFontMetrics(); String enter="[ PRESS ENTER TO START ]";
-        int ex=(GameFrame.WIDTH-fm.stringWidth(enter))/2;
-        g.setColor(new Color(80,255,120,(int)(ep*80))); g.drawString(enter,ex-1,397); g.drawString(enter,ex+1,397);
-        g.setColor(new Color(80,(int)(180+ep*60),100)); g.drawString(enter,ex,396);
-
-        // Credits
-        g.setFont(new Font("Monospaced",Font.PLAIN,11)); g.setColor(new Color(50,90,60));
-        String cred="Tolentino & Tanchico  |  Prog 2 Finals  |  UPHSD Molino";
-        fm=g.getFontMetrics(); g.drawString(cred,(GameFrame.WIDTH-fm.stringWidth(cred))/2,GameFrame.HEIGHT-12);
+    // Animated floating particles
+    long t = System.currentTimeMillis();
+    for (int i = 0; i < 20; i++) {
+        double px = ((t * (0.008 + i * 0.002) + i * 173) % W);
+        double py = 80 + ((t * (0.005 + i * 0.002) + i * 97) % (H - 120));
+        int alpha = (int)(50 + 40 * Math.sin(t * 0.002 + i));
+        g.setColor(new Color(60, 200, 90, alpha));
+        g.fillOval((int) px, (int) py, 2 + (i % 3), 2 + (i % 3));
     }
+
+    // Glow behind title
+    for (int r = 120; r > 0; r -= 20) {
+        g.setColor(new Color(30, 120, 50, (int)(8 + 4 * Math.sin(animTick * 0.03))));
+        g.fillOval(W / 2 - r, 70 - r / 2, r * 2, r);
+    }
+
+    // Title
+    g.setFont(new Font("Monospaced", Font.BOLD, 54));
+    FontMetrics fm = g.getFontMetrics();
+    String line1 = "LONE SOLDIER";
+    int tx = (W - fm.stringWidth(line1)) / 2;
+    g.setColor(new Color(0, 80, 30, 80));
+    g.drawString(line1, tx + 4, 124);
+    g.setColor(new Color(50, 220, 90));
+    g.drawString(line1, tx, 120);
+
+    // Subtitle
+    g.setFont(new Font("Monospaced", Font.BOLD, 18));
+    fm = g.getFontMetrics();
+    String line2 = "LAST STAND";
+    g.setColor(new Color(60, 130, 70));
+    g.drawString(line2, (W - fm.stringWidth(line2)) / 2, 148);
+
+    // Divider
+    g.setColor(new Color(40, 120, 55, 150));
+    g.fillRect(W / 2 - 160, 158, 320, 1);
+
+    // Best score
+    if (highScore > 0) {
+        g.setFont(new Font("Monospaced", Font.BOLD, 13));
+        fm = g.getFontMetrics();
+        String hs = "★  Best: " + highScore + " kills  ★";
+        int bw = fm.stringWidth(hs) + 24;
+        g.setColor(new Color(0, 0, 0, 160));
+        g.fillRoundRect(W / 2 - bw / 2, 164, bw, 22, 6, 6);
+        g.setColor(new Color(255, 210, 40));
+        g.drawString(hs, (W - fm.stringWidth(hs)) / 2, 180);
+    }
+
+    // Controls panel
+    int panelX = W / 2 - 170, panelY = 200, panelW = 340, panelH = 150;
+    g.setColor(new Color(0, 0, 0, 160));
+    g.fillRoundRect(panelX, panelY, panelW, panelH, 12, 12);
+    g.setColor(new Color(35, 100, 50, 140));
+    g.setStroke(new BasicStroke(1.5f));
+    g.drawRoundRect(panelX, panelY, panelW, panelH, 12, 12);
+    g.setStroke(new BasicStroke(1f));
+
+    g.setFont(new Font("Monospaced", Font.BOLD, 11));
+    fm = g.getFontMetrics();
+    g.setColor(new Color(50, 160, 70));
+    g.drawString("── CONTROLS ──", (W - fm.stringWidth("── CONTROLS ──")) / 2, panelY + 18);
+
+    String[][] ctrls = {
+        { "WASD / ARROWS", "Move" },
+        { "LEFT CLICK",    "Shoot" },
+        { "SPACE",         "Dash" },
+        { "1 / 2 / 3",     "Pick upgrade" },
+        { "ESC",           "Menu" }
+    };
+    g.setFont(new Font("Monospaced", Font.PLAIN, 12));
+    int ry = panelY + 36;
+    for (String[] row : ctrls) {
+        g.setColor(new Color(80, 210, 110));
+        g.drawString(row[0], panelX + 20, ry);
+        g.setColor(new Color(140, 190, 150));
+        g.drawString(row[1], panelX + 200, ry);
+        ry += 20;
+    }
+
+    // Blinking ENTER button
+    double blink = Math.sin(animTick * 0.07) * 0.5 + 0.5;
+    int btnW = 260, btnH = 38, btnX = W / 2 - 130, btnY = 365;
+    g.setColor(new Color(30, 150, 60, (int)(blink * 40)));
+    g.fillRoundRect(btnX - 6, btnY - 6, btnW + 12, btnH + 12, 14, 14);
+    g.setColor(new Color(10, 35, 18));
+    g.fillRoundRect(btnX, btnY, btnW, btnH, 10, 10);
+    g.setColor(new Color(50, (int)(160 + blink * 80), 70, (int)(160 + blink * 80)));
+    g.setStroke(new BasicStroke(2f));
+    g.drawRoundRect(btnX, btnY, btnW, btnH, 10, 10);
+    g.setStroke(new BasicStroke(1f));
+    g.setFont(new Font("Monospaced", Font.BOLD, 16));
+    fm = g.getFontMetrics();
+    String enter = "[ PRESS ENTER TO START ]";
+    g.setColor(new Color(70, (int)(200 + blink * 55), 90));
+    g.drawString(enter, (W - fm.stringWidth(enter)) / 2, btnY + 25);
+
+    // Credits
+    g.setFont(new Font("Monospaced", Font.PLAIN, 11));
+    fm = g.getFontMetrics();
+    String cred = "Tolentino & Tanchico  |  Prog 2 Finals  |  UPHSD Molino";
+    g.setColor(new Color(35, 75, 45));
+    g.drawString(cred, (W - fm.stringWidth(cred)) / 2, H - 10);
+}
 
     // ── GAMEPLAY ──
 
@@ -491,7 +719,18 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             g.setColor(new Color(100,180,255)); g.drawString("["+player.armor+"]",barX+barW+58,barY+13);
         }
 
-        // Enemies on screen (right side bottom)
+        // Dash cooldown indicator
+        g.setFont(new Font("Monospaced",Font.BOLD,12));
+        float dashReady = 1f - (float)player.dashCooldown / Player.DASH_COOLDOWN_MAX;
+        if (dashReady < 1f) {
+            g.setColor(new Color(100,180,255)); g.drawString("DASH", barX+barW+100, barY+13);
+            // Small cooldown bar
+            g.setColor(new Color(40,80,120)); g.fillRect(barX+barW+100,barY+16,40,4);
+            g.setColor(new Color(0,200,255)); g.fillRect(barX+barW+100,barY+16,(int)(40*dashReady),4);
+        } else {
+            g.setColor(new Color(0,255,150)); g.drawString("DASH", barX+barW+100, barY+13);
+            g.setColor(new Color(0,255,150)); g.fillRect(barX+barW+100,barY+16,40,4);
+        }
         g.setFont(new Font("Monospaced",Font.BOLD,12));
         String en=enemies.size()+" on field";
         fm=g.getFontMetrics();
@@ -664,12 +903,29 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     @Override
     public void keyPressed(KeyEvent e) {
         int k=e.getKeyCode();
-        if (state==GameState.MENU && k==KeyEvent.VK_ENTER) startNewGame();
+        
+        if (state==GameState.CHARACTER_SELECT) {
+            if(k==KeyEvent.VK_1) { selectedCharacter=Player.CharacterType.SOLDIER; state=GameState.SHOP; }
+            if(k==KeyEvent.VK_2) { selectedCharacter=Player.CharacterType.MAGE; state=GameState.SHOP; }
+            if(k==KeyEvent.VK_3) { selectedCharacter=Player.CharacterType.TANK; state=GameState.SHOP; }
+            if(k==KeyEvent.VK_4) { selectedCharacter=Player.CharacterType.ROGUE; state=GameState.SHOP; }
+        }
+        
+        if (state==GameState.SHOP) {
+            if(k==KeyEvent.VK_1) tryBuyShopItem(0);
+            if(k==KeyEvent.VK_2) tryBuyShopItem(1);
+            if(k==KeyEvent.VK_3) tryBuyShopItem(2);
+            if(k==KeyEvent.VK_4) tryBuyShopItem(3);
+            if(k==KeyEvent.VK_ENTER) { startNewGame(); state=GameState.PLAYING; }
+        }
+        
+        if (state==GameState.MENU && k==KeyEvent.VK_ENTER) { state=GameState.CHARACTER_SELECT; }
         if (state==GameState.PLAYING) {
             if(k==KeyEvent.VK_W||k==KeyEvent.VK_UP)    player.up=true;
             if(k==KeyEvent.VK_S||k==KeyEvent.VK_DOWN)  player.down=true;
             if(k==KeyEvent.VK_A||k==KeyEvent.VK_LEFT)  player.left=true;
             if(k==KeyEvent.VK_D||k==KeyEvent.VK_RIGHT) player.right=true;
+            if(k==KeyEvent.VK_SPACE) player.tryDash();
         }
         if (state==GameState.UPGRADE) {
             if(k==KeyEvent.VK_1) applyUpgrade(0);
@@ -677,10 +933,19 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             if(k==KeyEvent.VK_3) applyUpgrade(2);
         }
         if (state==GameState.GAME_OVER) {
-            if(k==KeyEvent.VK_ENTER)  startNewGame();
+            if(k==KeyEvent.VK_ENTER)  { state=GameState.CHARACTER_SELECT; }
             if(k==KeyEvent.VK_ESCAPE) state=GameState.MENU;
         }
         if (k==KeyEvent.VK_ESCAPE && state==GameState.PLAYING) state=GameState.MENU;
+    }
+    
+    private void tryBuyShopItem(int index) {
+        int[] costs = {30, 25, 20, 35};
+        if (shopCoins >= costs[index] && !shopBought[index]) {
+            shopCoins -= costs[index];
+            shopBought[index] = true;
+            SoundManager.shoot();
+        }
     }
 
     @Override
@@ -698,6 +963,32 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     @Override public void mouseReleased(MouseEvent e) { if(e.getButton()==MouseEvent.BUTTON1) mouseDown=false; }
     @Override public void mouseClicked(MouseEvent e)  {
         if(state==GameState.UPGRADE&&e.getButton()==MouseEvent.BUTTON1&&hoveredCard>=0) applyUpgrade(hoveredCard);
+        
+        // Character select click
+        if(state==GameState.CHARACTER_SELECT&&e.getButton()==MouseEvent.BUTTON1) {
+            Player.CharacterType[] chars = Player.CharacterType.values();
+            int cardW=140, cardH=180, totalW=cardW*4+60, startX=(GameFrame.WIDTH-totalW)/2, cardY=120;
+            for (int i=0; i<chars.length; i++) {
+                int cx = startX + i*(cardW+20);
+                if(e.getX()>=cx&&e.getX()<=cx+cardW&&e.getY()>=cardY&&e.getY()<=cardY+cardH) {
+                    selectedCharacter=chars[i];
+                    state=GameState.SHOP;
+                    break;
+                }
+            }
+        }
+        
+        // Shop click
+        if(state==GameState.SHOP&&e.getButton()==MouseEvent.BUTTON1) {
+            int itemW=200, itemH=100, totalW=itemW*4+60, startX=(GameFrame.WIDTH-totalW)/2, itemY=150;
+            for (int i=0; i<4; i++) {
+                int ix = startX + i*(itemW+20);
+                if(e.getX()>=ix&&e.getX()<=ix+itemW&&e.getY()>=itemY&&e.getY()<=itemY+itemH) {
+                    tryBuyShopItem(i);
+                    break;
+                }
+            }
+        }
     }
     @Override public void mouseEntered(MouseEvent e)  {}
     @Override public void mouseExited(MouseEvent e)   {}
