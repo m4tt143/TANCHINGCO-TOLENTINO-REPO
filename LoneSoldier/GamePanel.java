@@ -55,6 +55,11 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     // ── Animation ────────────────────────────────────────────────
     private long  animTick    = 0;
     private int   hoveredCard = -1;
+    
+    // ── Screen Effects ────────────────────────────────────────────
+    private float screenShakeX = 0, screenShakeY = 0;
+    private int   screenShakeTicks = 0;
+    private float characterBobOffset = 0;
 
     // ── Particles [x,y,vx,vy,life,maxLife,r,g,b] ─────────────────
     private final List<float[]> particles = new ArrayList<>();
@@ -145,6 +150,11 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         player.hp = player.maxHp;
     }
 
+    private void addScreenShake(int intensity, int duration) {
+        screenShakeTicks = Math.max(screenShakeTicks, duration);
+        // Intensity affects the magnitude but we handle that in the update
+    }
+
     private void startNewGame() { initObjects(); state = GameState.PLAYING; }
 
     // ── Update ────────────────────────────────────────────────────
@@ -199,6 +209,8 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                         int earnedCoins = (int)(baseCoins * player.coinMultiplier);
                         coins += earnedCoins;
                         gainXP(e.elite ? 5 : 1);
+                        // Add screen shake for enemy kills
+                        addScreenShake(e.elite ? 6 : 4, e.elite ? 8 : 6);
                         SoundManager.enemyDie();
                         spawnDeathParticles(e);
                         spawnFloatText(e.getCenterX(), e.getCenterY()-10, "+" + earnedCoins, 255,215,0);
@@ -223,11 +235,30 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                 player.takeDamage(e.elite ? 2 : 1);
                 hitPlayer.add(e);
                 damageFlashTicks = 14;
+                // Add screen shake for damage
+                addScreenShake(8, 6);
                 SoundManager.playerHit();
                 spawnFloatText(player.getCenterX(), player.getCenterY()-20, "-" + (e.elite?2:1)+" HP", 255,60,60);
             }
         }
         enemies.removeAll(hitPlayer);
+
+        // Update screen shake
+        if (screenShakeTicks > 0) {
+            screenShakeTicks--;
+            screenShakeX = (float)(Math.random() - 0.5) * (screenShakeTicks / 2f);
+            screenShakeY = (float)(Math.random() - 0.5) * (screenShakeTicks / 2f);
+        } else {
+            screenShakeX = screenShakeY = 0;
+        }
+
+        // Character bobbing animation (when moving)
+        boolean isMoving = player.up || player.down || player.left || player.right;
+        if (isMoving) {
+            characterBobOffset = (float)Math.sin(animTick * 0.3) * 2f; // Gentle up-down bob
+        } else {
+            characterBobOffset *= 0.9f; // Settle back to center when stopping
+        }
 
         if (damageFlashTicks > 0) damageFlashTicks--;
         if (killFlashTicks   > 0) killFlashTicks--;
@@ -279,16 +310,34 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private void spawnDeathParticles(Enemy e) {
         float cx=e.getCenterX(), cy=e.getCenterY();
         Color c = e.elite ? new Color(180,60,255) : new Color(200,30,30);
-        for (int i=0;i<12;i++) {
-            float ang=(float)(Math.random()*Math.PI*2), spd=1.5f+(float)Math.random()*3f;
-            particles.add(new float[]{cx,cy,(float)Math.cos(ang)*spd,(float)Math.sin(ang)*spd,20+i,25,c.getRed(),c.getGreen(),c.getBlue()});
+        
+        // Main explosion particles
+        for (int i=0;i<20;i++) {
+            float ang=(float)(Math.random()*Math.PI*2), spd=2f+(float)Math.random()*4f;
+            float life = 25 + (float)Math.random()*15;
+            particles.add(new float[]{cx,cy,(float)Math.cos(ang)*spd,(float)Math.sin(ang)*spd,life,life,c.getRed(),c.getGreen(),c.getBlue()});
+        }
+        
+        // Secondary spark particles
+        for (int i=0;i<8;i++) {
+            float ang=(float)(Math.random()*Math.PI*2), spd=1f+(float)Math.random()*2f;
+            particles.add(new float[]{cx,cy,(float)Math.cos(ang)*spd,(float)Math.sin(ang)*spd,15,20,255,255,150});
         }
     }
 
     private void spawnHitSparks(Enemy e) {
-        for (int i=0;i<5;i++) {
-            float ang=(float)(Math.random()*Math.PI*2), spd=1f+(float)Math.random()*2f;
-            particles.add(new float[]{e.getCenterX(),e.getCenterY(),(float)Math.cos(ang)*spd,(float)Math.sin(ang)*spd,8,10,255,200,50});
+        // Enhanced hit sparks with more particles and colors
+        for (int i=0;i<12;i++) {
+            float ang=(float)(Math.random()*Math.PI*2), spd=1.5f+(float)Math.random()*3f;
+            // Mix of yellow and orange sparks
+            int r = 255, g = 180 + (int)(Math.random()*75), b = 50 + (int)(Math.random()*100);
+            particles.add(new float[]{e.getCenterX(),e.getCenterY(),(float)Math.cos(ang)*spd,(float)Math.sin(ang)*spd,12,15,r,g,b});
+        }
+        
+        // Small impact flash
+        for (int i=0;i<3;i++) {
+            float ang=(float)(Math.random()*Math.PI*2), spd=0.5f+(float)Math.random()*1f;
+            particles.add(new float[]{e.getCenterX(),e.getCenterY(),(float)Math.cos(ang)*spd,(float)Math.sin(ang)*spd,8,10,255,255,255});
         }
     }
 
@@ -641,52 +690,61 @@ private void drawMenu(Graphics2D g) {
     // ── GAMEPLAY ──
 
     private void drawGame(Graphics2D g) {
-        drawBackground(g);
+        // Apply screen shake to entire game world
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.translate(screenShakeX, screenShakeY);
+        
+        drawBackground(g2);
 
         // Particles (behind entities)
         for (float[] p : particles) {
             float lr=p[4]/p[5]; int a=(int)(lr*210);
-            g.setColor(new Color((int)p[6],(int)p[7],(int)p[8],Math.min(255,a)));
-            int sz=Math.max(2,(int)(5*lr)); g.fillOval((int)p[0]-sz/2,(int)p[1]-sz/2,sz,sz);
+            g2.setColor(new Color((int)p[6],(int)p[7],(int)p[8],Math.min(255,a)));
+            int sz=Math.max(2,(int)(5*lr)); g2.fillOval((int)p[0]-sz/2,(int)p[1]-sz/2,sz,sz);
         }
 
         // Damage border vignette
         if (damageFlashTicks>0) {
             int fa=Math.min(180,damageFlashTicks*14);
-            for (int i=0;i<22;i++) { g.setColor(new Color(220,0,0,Math.max(0,fa-i*8))); g.drawRect(i,i,GameFrame.WIDTH-i*2,GameFrame.HEIGHT-i*2); }
+            for (int i=0;i<22;i++) { g2.setColor(new Color(220,0,0,Math.max(0,fa-i*8))); g2.drawRect(i,i,GameFrame.WIDTH-i*2,GameFrame.HEIGHT-i*2); }
         }
 
         // Entities
-        for (Bullet b : bullets) b.draw(g);
-        for (Enemy  e : enemies) e.draw(g);
+        for (Bullet b : bullets) b.draw(g2);
+        for (Enemy  e : enemies) e.draw(g2);
         double aim=Math.atan2(mouseY-player.getCenterY(),mouseX-player.getCenterX())+Math.PI/2;
-        player.draw(g,aim,characterImages);
+        // Apply character bobbing offset
+        Graphics2D playerG = (Graphics2D) g2.create();
+        playerG.translate(0, -characterBobOffset);
+        player.draw(playerG, aim, characterImages);
+        playerG.dispose();
 
         // Floating texts
-        g.setFont(new Font("Monospaced",Font.BOLD,13));
+        g2.setFont(new Font("Monospaced",Font.BOLD,13));
         for (Object[] ft : floatTexts) {
             int life=(int)ft[3]; float lifeR=life/45f;
             int a=(int)(lifeR*220);
-            g.setColor(new Color((int)ft[5],(int)ft[6],(int)ft[7],Math.min(255,a)));
-            g.drawString((String)ft[4],(int)(float)(Float)ft[0],(int)(float)(Float)ft[1]);
+            g2.setColor(new Color((int)ft[5],(int)ft[6],(int)ft[7],Math.min(255,a)));
+            g2.drawString((String)ft[4],(int)(float)(Float)ft[0],(int)(float)(Float)ft[1]);
         }
-
-        // Crosshair
-        drawCrosshair(g,mouseX,mouseY);
-        // HUD
-        drawHUD(g);
 
         // Wave banner
         if (waveFlashTicks>0) {
             float alpha=Math.min(1f,waveFlashTicks/40f);
             int bw=320,bh=64,bx=GameFrame.WIDTH/2-bw/2,by=GameFrame.HEIGHT/2-bh/2;
-            g.setColor(new Color(0,200,80,(int)(alpha*25))); g.fillRoundRect(bx-8,by-8,bw+16,bh+16,24,24);
-            g.setColor(new Color(5,15,10,(int)(alpha*210))); g.fillRoundRect(bx,by,bw,bh,16,16);
-            g.setColor(new Color(60,200,80,(int)(alpha*160))); g.setStroke(new BasicStroke(2)); g.drawRoundRect(bx,by,bw,bh,16,16); g.setStroke(new BasicStroke(1));
-            g.setFont(new Font("Monospaced",Font.BOLD,26)); g.setColor(new Color(100,255,130,(int)(alpha*255)));
-            String wt="-- WAVE "+waveManager.getCurrentWave()+" --"; FontMetrics fm=g.getFontMetrics();
-            g.drawString(wt,GameFrame.WIDTH/2-fm.stringWidth(wt)/2,GameFrame.HEIGHT/2+9);
+            g2.setColor(new Color(0,200,80,(int)(alpha*25))); g2.fillRoundRect(bx-8,by-8,bw+16,bh+16,24,24);
+            g2.setColor(new Color(5,15,10,(int)(alpha*210))); g2.fillRoundRect(bx,by,bw,bh,16,16);
+            g2.setColor(new Color(60,200,80,(int)(alpha*160))); g2.setStroke(new BasicStroke(2)); g2.drawRoundRect(bx,by,bw,bh,16,16); g2.setStroke(new BasicStroke(1));
+            g2.setFont(new Font("Monospaced",Font.BOLD,26)); g2.setColor(new Color(100,255,130,(int)(alpha*255)));
+            String wt="-- WAVE "+waveManager.getCurrentWave()+" --"; FontMetrics fm=g2.getFontMetrics();
+            g2.drawString(wt,GameFrame.WIDTH/2-fm.stringWidth(wt)/2,GameFrame.HEIGHT/2+9);
         }
+        
+        g2.dispose(); // Clean up the transformed graphics
+        
+        // Draw UI elements without screen shake
+        drawCrosshair(g, mouseX, mouseY);
+        drawHUD(g);
     }
 
     private void drawCrosshair(Graphics2D g, int cx, int cy) {

@@ -1,4 +1,5 @@
 import java.awt.*;
+import java.awt.geom.AffineTransform;
 
 /**
  * Player - The hero soldier controlled by the user.
@@ -160,6 +161,23 @@ public class Player {
             // High-quality scaling for gameplay
             Graphics2D g2d = (Graphics2D) g;
             g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            
+            // Draw dash trail (semi-transparent copies behind current position)
+            if (isDashing()) {
+                float trailAlpha = 0.3f;
+                for (int i = 1; i <= 3; i++) {
+                    float trailX = px - dashVx * i * 2;
+                    float trailY = py - dashVy * i * 2;
+                    if (trailX >= 0 && trailX <= GameFrame.WIDTH - SIZE && trailY >= 55 && trailY <= GameFrame.HEIGHT - SIZE) {
+                        Composite oldComposite = g2d.getComposite();
+                        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, trailAlpha / i));
+                        g2d.drawImage(img, (int)trailX, (int)trailY, SIZE, SIZE, null);
+                        g2d.setComposite(oldComposite);
+                        trailAlpha *= 0.7f;
+                    }
+                }
+            }
+            
             g2d.drawImage(img, px, py, SIZE, SIZE, null);
         }
 
