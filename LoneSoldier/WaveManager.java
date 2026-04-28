@@ -44,6 +44,7 @@ public class WaveManager {
     }
 
     public int   getCurrentWave()   { return currentWave; }
+    public boolean isBossWave()     { return currentWave % 5 == 0; }
     public float getWaveProgress()  { return (float) waveTicks / WAVE_DURATION; }
     public void  reset()            { currentWave = 1; waveTicks = 0; spawnCooldown = 40; speedBoost = 0f; eliteBoost = false; }
 }

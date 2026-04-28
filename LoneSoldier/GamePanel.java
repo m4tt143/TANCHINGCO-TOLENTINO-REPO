@@ -8,25 +8,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * GamePanel - Endless Waves Survival style.
- * Enhanced with dynamic lighting, blood decals, camera drift, CRT scanlines,
- * bullet trails, muzzle flashes, and atmospheric particles.
- *
- * IMPROVEMENTS:
- *  - darknessBuffer reused (no per-frame allocation)
- *  - bgRandom is a field (no per-frame allocation)
- *  - Fonts cached as static finals
- *  - Regen uses large int instead of Integer.MAX_VALUE
- *  - Minor visual polish throughout
- */
-
-   public class GamePanel extends JPanel implements KeyListener, MouseListener, MouseMotionListener {
-
+public class GamePanel extends JPanel implements KeyListener, MouseListener, MouseMotionListener {
     private static final int BASE_WIDTH = 800;
-   private static final int BASE_HEIGHT = 600;
+    private static final int BASE_HEIGHT = 600;
 
-    // ── Cached Fonts ──────────────────────────────────────────────
     private static final Font FONT_MONO_BOLD_8  = new Font("Monospaced", Font.BOLD,  8);
     private static final Font FONT_MONO_BOLD_9  = new Font("Monospaced", Font.BOLD,  9);
     private static final Font FONT_MONO_BOLD_10 = new Font("Monospaced", Font.BOLD, 10);
@@ -54,10 +39,15 @@ import java.util.List;
     public enum GameState { CHARACTER_SELECT, SHOP, MENU, PLAYING, UPGRADE, IN_GAME_SHOP, GAME_OVER }
     private GameState state = GameState.MENU;
 
-    private Player       player;
-    private List<Enemy>  enemies;
+    private Player player;
+    private List<Enemy> enemies;
     private List<Bullet> bullets;
-    private WaveManager  waveManager;
+    private List<EnemyProjectile> enemyBullets;
+    private List<DamageNumber> damageNumbers;
+    private List<LootDrop> lootDrops;
+    private List<ExplosiveBarrel> barrels;
+    private WaveManager waveManager;
+    private WeatherSystem weather;
 
     private static final java.util.Map<Player.CharacterType, BufferedImage> characterImages = new java.util.HashMap<>();
 
@@ -65,80 +55,77 @@ import java.util.List;
     private int shopCoins = 0;
     private boolean[] shopBought = new boolean[4];
 
-    private int   coins      = 0;
-    private int   totalKills = 0;
-    private int   highScore  = 0;
-    private int   xp         = 0;
-    private int   level      = 1;
-    private int   xpToNext   = 10;
-
-    private int   survivalTicks = 0;
-
+    private int coins = 0;
+    private int totalKills = 0;
+    private int highScore = 0;
+    private int xp = 0;
+    private int level = 1;
+    private int xpToNext = 10;
+    private int survivalTicks = 0;
     private String[] upgradeOptions = new String[3];
 
-    private int   damageFlashTicks = 0;
-    private int   killFlashTicks   = 0;
-    private int   waveFlashTicks   = 0;
-    private int   lastWaveShown    = 0;
-
-    private long  animTick    = 0;
-    private int   hoveredCard = -1;
-    private int   hoveredShopItem = -1;
-    private int   killStreak = 0;
-    private int   killStreakTimer = 0;
-    private int   killStreakLevel = 0;
-    private int   hitMarkerTicks = 0;
+    private int damageFlashTicks = 0;
+    private int killFlashTicks = 0;
+    private int waveFlashTicks = 0;
+    private int lastWaveShown = 0;
+    private long animTick = 0;
+    private int hoveredCard = -1;
+    private int hoveredShopItem = -1;
+    private int killStreak = 0;
+    private int killStreakTimer = 0;
+    private int killStreakLevel = 0;
+    private int hitMarkerTicks = 0;
+    private int comboDisplayTicks = 0;
+    private int comboCount = 0;
 
     private float screenShakeX = 0, screenShakeY = 0;
-    private int   screenShakeTicks = 0;
+    private int screenShakeTicks = 0;
     private float characterBobOffset = 0;
-    private int   crosshairPulse    = 0;
-    private int   hoveredCharCard   = -1;
-    private int   statRevealTick    = 0;
+    private int crosshairPulse = 0;
+    private int hoveredCharCard = -1;
+    private int statRevealTick = 0;
+    private int nukeFlashTicks = 0;
 
-    // ── Particles [x,y,vx,vy,life,maxLife,r,g,b] ──
     private final List<float[]> particles = new ArrayList<>();
-
-    // ── Floating text [x,y,vx,vy,life,text,r,g,b,size,bounce] ──
     private final List<Object[]> floatTexts = new ArrayList<>();
-
-    // ── Blood decals [x,y,size,r,g,b,alpha] ──
     private final List<float[]> bloodDecals = new ArrayList<>();
-
-    // ── Ambient dust [x,y,vx,vy,size] ──
     private final List<float[]> ambientParticles = new ArrayList<>();
 
-    // ── Camera & Post-Process ──
     private float cameraX = 0, cameraY = 0;
     private BufferedImage gameBuffer;
-    private BufferedImage darknessBuffer; // FIX: reused every frame, not re-allocated
+    private BufferedImage darknessBuffer;
     private int fadeAlpha = 0;
 
-    private int  mouseX = GameFrame.WIDTH/2, mouseY = GameFrame.HEIGHT/2;
+    private int mouseX = GameFrame.WIDTH/2, mouseY = GameFrame.HEIGHT/2;
     private boolean mouseDown = false;
-
-    // FIX: bgRandom as field so it is not re-created every frame in drawBackground()
     private final java.util.Random bgRandom = new java.util.Random(42);
 
     private List<Bullet> deadBulletsPool = new ArrayList<>();
-    private List<Enemy>  deadEnemiesPool = new ArrayList<>();
-    private List<Enemy>  hitPlayerPool   = new ArrayList<>();
+    private List<Enemy> deadEnemiesPool = new ArrayList<>();
+    private List<Enemy> hitPlayerPool = new ArrayList<>();
+    private List<EnemyProjectile> deadEnemyBulletsPool = new ArrayList<>();
+    private List<ExplosiveBarrel> deadBarrelsPool = new ArrayList<>();
 
     private final Timer gameTimer;
     private static final int FPS = 60;
+
+    private SaveManager.Data saveData;
 
     public GamePanel() {
         setPreferredSize(new Dimension(800, 600));
         setBackground(Color.BLACK);
         setFocusable(true);
+        setDoubleBuffered(true);
         addKeyListener(this);
         addMouseListener(this);
         addMouseMotionListener(this);
         loadCharacterImages();
+        loadSave();
         initObjects();
 
-        gameBuffer     = new BufferedImage(GameFrame.WIDTH, GameFrame.HEIGHT, BufferedImage.TYPE_INT_ARGB);
+        gameBuffer = new BufferedImage(GameFrame.WIDTH, GameFrame.HEIGHT, BufferedImage.TYPE_INT_ARGB);
         darknessBuffer = new BufferedImage(GameFrame.WIDTH, GameFrame.HEIGHT, BufferedImage.TYPE_INT_ARGB);
+        weather = new WeatherSystem(GameFrame.WIDTH, GameFrame.HEIGHT);
 
         for (int i = 0; i < 40; i++) {
             ambientParticles.add(new float[]{
@@ -154,18 +141,22 @@ import java.util.List;
         gameTimer.start();
     }
 
-    // ── Init ─────────────────────────────────────────────────────
+    private void loadSave() {
+        saveData = SaveManager.load();
+        highScore = saveData.highScore;
+    }
+
+    private void saveGame() {
+        if (totalKills > saveData.highScore) saveData.highScore = totalKills;
+        saveData.totalKills += totalKills;
+        saveData.gamesPlayed++;
+        SaveManager.save(saveData);
+    }
 
     private void loadCharacterImages() {
         String[] characters = {"SOLDIER", "MAGE", "TANK", "ROGUE"};
         Player.CharacterType[] types = Player.CharacterType.values();
-
-        String[] pathAttempts = {
-            "assets/images/",
-            "LoneSoldier/assets/images/",
-            "./assets/images/"
-        };
-
+        String[] pathAttempts = {"assets/images/", "LoneSoldier/assets/images/", "./assets/images/"};
         for (int i = 0; i < characters.length && i < types.length; i++) {
             boolean loaded = false;
             for (String pathBase : pathAttempts) {
@@ -174,37 +165,48 @@ import java.util.List;
                     if (imgFile.exists()) {
                         BufferedImage img = ImageIO.read(imgFile);
                         characterImages.put(types[i], img);
-                        System.out.println("Loaded " + characters[i]);
                         loaded = true;
                         break;
                     }
-                } catch (Exception e) { /* try next */ }
+                } catch (Exception e) {}
             }
-            if (!loaded) System.out.println("Could not load image for " + characters[i]);
         }
     }
 
     private void initObjects() {
         float cx = GameFrame.WIDTH/2f - Player.SIZE/2f;
         float cy = GameFrame.HEIGHT/2f - Player.SIZE/2f;
-        player      = new Player(cx, cy, selectedCharacter);
-        enemies     = new ArrayList<>();
-        bullets     = new ArrayList<>();
+        player = new Player(cx, cy, selectedCharacter);
+        enemies = new ArrayList<>();
+        bullets = new ArrayList<>();
+        enemyBullets = new ArrayList<>();
+        damageNumbers = new ArrayList<>();
+        lootDrops = new ArrayList<>();
+        barrels = new ArrayList<>();
         waveManager = new WaveManager();
         coins = 0; totalKills = 0; xp = 0; level = 1; xpToNext = 10;
         survivalTicks = 0; damageFlashTicks = 0; waveFlashTicks = 0; lastWaveShown = 0;
         particles.clear(); floatTexts.clear(); bloodDecals.clear();
-        player.enemySlowPercent = 0f;
-        player.critChance = 0f;
-        player.coinMultiplier = 1.0f;
-        player.regenTicksLeft = 0;
+        player.enemySlowPercent = 0f; player.critChance = 0f;
+        player.coinMultiplier = 1.0f; player.regenTicksLeft = 0;
         player.bulletSpreadAngle = 0f;
+        player.speedBoostTimer = 0; player.damageBoostTimer = 0;
+        player.shieldTimer = 0; player.coinMagnetTimer = 0;
+        killStreak = 0; killStreakTimer = 0; comboCount = 0;
 
         if (shopBought[0]) player.maxHp += 2;
         if (shopBought[1]) player.damage += 1;
         if (shopBought[2]) player.speed += 0.5f;
         if (shopBought[3]) player.coinMultiplier += 0.25f;
         player.hp = player.maxHp;
+
+        // Spawn initial barrels
+        for (int i = 0; i < 4; i++) {
+            barrels.add(new ExplosiveBarrel(
+                60 + (float)Math.random() * (GameFrame.WIDTH - 120),
+                80 + (float)Math.random() * (GameFrame.HEIGHT - 140)
+            ));
+        }
     }
 
     private void addScreenShake(int intensity, int duration) {
@@ -213,11 +215,8 @@ import java.util.List;
 
     private void startNewGame() { initObjects(); state = GameState.PLAYING; }
 
-    // ── Update ────────────────────────────────────────────────────
-
     private void update() {
         if (fadeAlpha > 0) fadeAlpha = Math.max(0, fadeAlpha - 4);
-
         if (state != GameState.PLAYING) {
             animTick++;
             if (state == GameState.GAME_OVER && statRevealTick < 120) statRevealTick++;
@@ -226,8 +225,8 @@ import java.util.List;
 
         animTick++;
         survivalTicks++;
+        weather.update();
 
-        // Camera smoothing with mouse lookahead
         float targetCamX = (player.getCenterX() - GameFrame.WIDTH/2f) * 0.22f
                          + (mouseX - GameFrame.WIDTH/2f) * 0.10f;
         float targetCamY = (player.getCenterY() - GameFrame.HEIGHT/2f) * 0.22f
@@ -237,21 +236,31 @@ import java.util.List;
         cameraX = Math.max(-60, Math.min(60, cameraX));
         cameraY = Math.max(-60, Math.min(60, cameraY));
 
-        // Ambient dust
         for (float[] ap : ambientParticles) {
-            ap[0] += ap[2];
-            ap[1] += ap[3];
+            ap[0] += ap[2]; ap[1] += ap[3];
             if (ap[1] < -10) { ap[1] = GameFrame.HEIGHT + 10; ap[0] = (float)Math.random() * GameFrame.WIDTH; }
-            if (ap[0] < -10)  ap[0] = GameFrame.WIDTH + 10;
+            if (ap[0] < -10) ap[0] = GameFrame.WIDTH + 10;
             if (ap[0] > GameFrame.WIDTH + 10) ap[0] = -10;
         }
 
-        // FIX: use 999_999_999 instead of Integer.MAX_VALUE to avoid decrement overflow + % 300 bug
         if (player.regenTicksLeft > 0) {
             player.regenTicksLeft--;
             if (player.regenTicksLeft % 300 == 0) {
                 player.hp = Math.min(player.maxHp, player.hp + 1);
                 spawnFloatText(player.getCenterX(), player.getCenterY()-25, "+1 HP", 100, 255, 100);
+            }
+        }
+
+        // Coin magnet
+        if (player.coinMagnetTimer > 0) {
+            for (LootDrop ld : lootDrops) {
+                float dx = player.getCenterX() - ld.x;
+                float dy = player.getCenterY() - ld.y;
+                float dist = (float)Math.sqrt(dx*dx + dy*dy);
+                if (dist < 200 && dist > 10) {
+                    ld.x += (dx/dist) * 4f;
+                    ld.y += (dy/dist) * 4f;
+                }
             }
         }
 
@@ -270,14 +279,35 @@ import java.util.List;
             if (ft.length > 9) ft[9] = (float)ft[9] + 0.25f;
         }
 
+        damageNumbers.removeIf(DamageNumber::isDead);
+        for (DamageNumber dn : damageNumbers) dn.update();
+
+        lootDrops.removeIf(LootDrop::isExpired);
+        for (LootDrop ld : lootDrops) ld.update();
+
         int w = waveManager.getCurrentWave();
-        if (w != lastWaveShown) { lastWaveShown = w; waveFlashTicks = 150; SoundManager.waveStart(); }
+        if (w != lastWaveShown) {
+            lastWaveShown = w;
+            waveFlashTicks = 150;
+            SoundManager.waveStart();
+            // Spawn new barrels every 3 waves
+            if (w % 3 == 0) {
+                for (int i = 0; i < 2; i++) {
+                    barrels.add(new ExplosiveBarrel(
+                        60 + (float)Math.random() * (GameFrame.WIDTH - 120),
+                        80 + (float)Math.random() * (GameFrame.HEIGHT - 140)
+                    ));
+                }
+            }
+        }
         if (waveFlashTicks > 0) waveFlashTicks--;
-        if (killStreakTimer > 0) killStreakTimer--; else killStreak = 0;
+        if (killStreakTimer > 0) killStreakTimer--; else { killStreak = 0; comboCount = 0; }
+        if (comboDisplayTicks > 0) comboDisplayTicks--;
+        if (nukeFlashTicks > 0) nukeFlashTicks--;
 
         waveManager.update(enemies);
-
         player.update();
+
         if (mouseDown && player.canShoot()) {
             fireTowardMouse();
             player.resetCooldown();
@@ -285,29 +315,92 @@ import java.util.List;
             crosshairPulse = 8;
         }
 
+        // Enemy shooting
+        for (Enemy e : enemies) {
+            if (e.type.canShoot && e.shootCooldown-- <= 0) {
+                e.shootCooldown = e.type == EnemyType.BOSS ? 30 + (int)(Math.random()*20) : 50 + (int)(Math.random()*60);
+                float dx = player.getCenterX() - e.getCenterX();
+                float dy = player.getCenterY() - e.getCenterY();
+                float dist = (float)Math.sqrt(dx*dx + dy*dy);
+                if (dist > 0) {
+                    float spd = e.type == EnemyType.BOSS ? 4.5f : 3.5f;
+                    enemyBullets.add(new EnemyProjectile(e.getCenterX(), e.getCenterY(), (dx/dist)*spd, (dy/dist)*spd, e.type == EnemyType.BOSS));
+                }
+            }
+        }
+
+        // Update enemy bullets
+        deadEnemyBulletsPool.clear();
+        for (EnemyProjectile eb : enemyBullets) {
+            eb.update();
+            if (eb.isOffScreen()) { deadEnemyBulletsPool.add(eb); continue; }
+            if (eb.getBounds().intersects(player.getBounds())) {
+                if (!player.isDashing() && !player.isSuperInvincible() && player.shieldTimer <= 0) {
+                    player.takeDamage(eb.fromBoss ? 2 : 1);
+                    damageFlashTicks = 14;
+                    addScreenShake(eb.fromBoss ? 10 : 6, eb.fromBoss ? 8 : 6);
+                    SoundManager.playerHit();
+                    spawnFloatText(player.getCenterX(), player.getCenterY()-20, "-" + (eb.fromBoss?2:1) + " HP", 255, 60, 60);
+                }
+                deadEnemyBulletsPool.add(eb);
+            }
+        }
+        enemyBullets.removeAll(deadEnemyBulletsPool);
+
+        // Bullets vs enemies
         deadBulletsPool.clear();
         deadEnemiesPool.clear();
         for (Bullet b : bullets) {
             b.update();
             if (b.isOffScreen()) { deadBulletsPool.add(b); continue; }
+
+            // Bullets vs barrels
+            for (ExplosiveBarrel barrel : barrels) {
+                if (!barrel.exploded && b.getBounds().intersects(barrel.getBounds())) {
+                    barrel.takeDamage(b.damage);
+                    deadBulletsPool.add(b);
+                    if (barrel.exploded) {
+                        explodeBarrel(barrel);
+                    }
+                    break;
+                }
+            }
+            if (deadBulletsPool.contains(b)) continue;
+
             for (Enemy e : enemies) {
                 if (!deadEnemiesPool.contains(e) && b.getBounds().intersects(e.getBounds())) {
-                    e.hp -= b.damage;
+                    int dmg = b.damage;
+                    boolean isCrit = Math.random() < player.critChance;
+                    if (isCrit) dmg += 2;
+                    e.hp -= dmg;
                     e.hitFlash = 5;
                     e.knockbackX = b.dx * 0.22f;
                     e.knockbackY = b.dy * 0.22f;
                     deadBulletsPool.add(b);
+
+                    damageNumbers.add(new DamageNumber(e.getCenterX(), e.getCenterY(), dmg, isCrit));
+
                     if (e.hp <= 0) {
                         deadEnemiesPool.add(e);
                         totalKills++; killFlashTicks = 10;
+                        killStreak++; killStreakTimer = 180; comboCount++;
+                        if (killStreak >= 5) comboDisplayTicks = 60;
                         int earnedCoins = (int)(e.coinDrop * player.coinMultiplier);
+                        if (killStreakLevel > 0) earnedCoins += killStreakLevel;
                         coins += earnedCoins;
-                        gainXP(e.elite ? 5 : 1);
-                        addScreenShake(e.elite ? 6 : 4, e.elite ? 8 : 6);
+                        gainXP(e.elite ? 5 : e.type == EnemyType.BOSS ? 15 : 1);
+                        addScreenShake(e.type == EnemyType.BOSS ? 14 : e.elite ? 6 : 4, e.type == EnemyType.BOSS ? 12 : e.elite ? 8 : 6);
                         SoundManager.enemyDie();
                         spawnDeathParticles(e);
                         spawnBloodDecal(e);
                         spawnFloatText(e.getCenterX(), e.getCenterY()-10, "+" + earnedCoins + "$", 255, 215, 0, 14);
+
+                        // Loot drop chance
+                        if (Math.random() < 0.12 || e.type == EnemyType.BOSS) {
+                            LootDrop.Type[] types = LootDrop.Type.values();
+                            LootDrop.Type lt = types[(int)(Math.random() * types.length)];
+                            lootDrops.add(new LootDrop(e.getCenterX(), e.getCenterY(), lt));
+                        }
                     } else {
                         SoundManager.enemyHit();
                         spawnHitSparks(e);
@@ -319,20 +412,58 @@ import java.util.List;
         bullets.removeAll(deadBulletsPool);
         enemies.removeAll(deadEnemiesPool);
 
+        // Exploder enemies
+        for (Enemy e : enemies) {
+            if (e.type == EnemyType.EXPLODER && e.explodeTimer == 0) {
+                explodeEnemy(e);
+            }
+        }
+        enemies.removeIf(e -> e.type == EnemyType.EXPLODER && e.explodeTimer == 0);
+
+        // Loot collection
+        List<LootDrop> collectedLoot = new ArrayList<>();
+        for (LootDrop ld : lootDrops) {
+            float dx = player.getCenterX() - ld.x;
+            float dy = player.getCenterY() - ld.y;
+            float dist = (float)Math.sqrt(dx*dx + dy*dy);
+            if (dist < 28) {
+                collectedLoot.add(ld);
+                applyLootEffect(ld.type);
+                SoundManager.upgradeSelect();
+            }
+        }
+        lootDrops.removeAll(collectedLoot);
+
+        // Player vs enemies collision
         hitPlayerPool.clear();
         for (Enemy e : enemies) {
             float effectiveSpeed = e.speed * (1f - player.enemySlowPercent);
             e.update(player.getCenterX(), player.getCenterY(), effectiveSpeed);
             if (e.getBounds().intersects(player.getBounds())) {
-                player.takeDamage(e.elite ? 2 : 1);
-                hitPlayerPool.add(e);
-                damageFlashTicks = 14;
-                addScreenShake(8, 6);
-                SoundManager.playerHit();
-                spawnFloatText(player.getCenterX(), player.getCenterY()-20, "-" + (e.elite?2:1)+" HP", 255, 60, 60);
+                if (e.type == EnemyType.EXPLODER) {
+                    explodeEnemy(e);
+                    hitPlayerPool.add(e);
+                } else {
+                    player.takeDamage(e.elite ? 2 : e.type == EnemyType.BOSS ? 3 : 1);
+                    hitPlayerPool.add(e);
+                    damageFlashTicks = 14;
+                    addScreenShake(e.type == EnemyType.BOSS ? 12 : 8, e.type == EnemyType.BOSS ? 10 : 6);
+                    SoundManager.playerHit();
+                    spawnFloatText(player.getCenterX(), player.getCenterY()-20, "-" + (e.elite?2:e.type==EnemyType.BOSS?3:1) + " HP", 255, 60, 60);
+                }
             }
         }
         enemies.removeAll(hitPlayerPool);
+
+        // Barrel explosions chain reaction
+        deadBarrelsPool.clear();
+        for (ExplosiveBarrel barrel : barrels) {
+            if (barrel.exploded) {
+                barrel.explodeTimer--;
+                if (barrel.explodeTimer <= 0) deadBarrelsPool.add(barrel);
+            }
+        }
+        barrels.removeAll(deadBarrelsPool);
 
         if (screenShakeTicks > 0) {
             screenShakeTicks--;
@@ -346,16 +477,150 @@ import java.util.List;
         characterBobOffset = isMoving ? (float)Math.sin(animTick * 0.3) * 2f : characterBobOffset * 0.9f;
 
         if (damageFlashTicks > 0) damageFlashTicks--;
-        if (crosshairPulse   > 0) crosshairPulse--;
-        if (killFlashTicks   > 0) killFlashTicks--;
+        if (crosshairPulse > 0) crosshairPulse--;
+        if (killFlashTicks > 0) killFlashTicks--;
 
         if (player.hp <= 0) {
             if (totalKills > highScore) highScore = totalKills;
+            saveGame();
             shopCoins = coins;
             fadeAlpha = 200;
             state = GameState.GAME_OVER;
             statRevealTick = 0;
             SoundManager.gameOver();
+        }
+    }
+
+    private void explodeBarrel(ExplosiveBarrel barrel) {
+        addScreenShake(12, 10);
+        SoundManager.playerHit();
+        // Damage nearby enemies
+        List<Enemy> hitByExplosion = new ArrayList<>();
+        for (Enemy e : enemies) {
+            float dx = e.getCenterX() - (barrel.x + ExplosiveBarrel.SIZE/2f);
+            float dy = e.getCenterY() - (barrel.y + ExplosiveBarrel.SIZE/2f);
+            float dist = (float)Math.sqrt(dx*dx + dy*dy);
+            if (dist < 140) {
+                e.hp -= 5;
+                e.hitFlash = 8;
+                e.knockbackX = (dx/dist) * 12f;
+                e.knockbackY = (dy/dist) * 12f;
+                if (e.hp <= 0) hitByExplosion.add(e);
+            }
+        }
+        for (Enemy e : hitByExplosion) {
+            deadEnemiesPool.add(e);
+            totalKills++;
+            int earned = (int)(e.coinDrop * player.coinMultiplier);
+            coins += earned;
+            spawnDeathParticles(e);
+            spawnBloodDecal(e);
+        }
+        enemies.removeAll(hitByExplosion);
+        // Damage player if close
+        float pdx = player.getCenterX() - (barrel.x + ExplosiveBarrel.SIZE/2f);
+        float pdy = player.getCenterY() - (barrel.y + ExplosiveBarrel.SIZE/2f);
+        float pdist = (float)Math.sqrt(pdx*pdx + pdy*pdy);
+        if (pdist < 140 && !player.isDashing() && !player.isSuperInvincible() && player.shieldTimer <= 0) {
+            player.takeDamage(2);
+            damageFlashTicks = 20;
+            spawnFloatText(player.getCenterX(), player.getCenterY()-20, "-2 HP", 255, 60, 60);
+        }
+        // Visual explosion
+        for (int i = 0; i < 40; i++) {
+            float ang = (float)(Math.random() * Math.PI * 2);
+            float spd = 2f + (float)Math.random() * 7f;
+            particles.add(new float[]{
+                barrel.x + ExplosiveBarrel.SIZE/2f, barrel.y + ExplosiveBarrel.SIZE/2f,
+                (float)Math.cos(ang)*spd, (float)Math.sin(ang)*spd,
+                25 + (float)Math.random()*15, 35, 255, 120 + (int)(Math.random()*80), 20
+            });
+        }
+    }
+
+    private void explodeEnemy(Enemy e) {
+        addScreenShake(10, 8);
+        List<Enemy> hitByExplosion = new ArrayList<>();
+        for (Enemy other : enemies) {
+            if (other == e) continue;
+            float dx = other.getCenterX() - e.getCenterX();
+            float dy = other.getCenterY() - e.getCenterY();
+            float dist = (float)Math.sqrt(dx*dx + dy*dy);
+            if (dist < 100) {
+                other.hp -= 3;
+                other.hitFlash = 6;
+                other.knockbackX = (dx/dist) * 8f;
+                other.knockbackY = (dy/dist) * 8f;
+                if (other.hp <= 0) hitByExplosion.add(other);
+            }
+        }
+        for (Enemy dead : hitByExplosion) {
+            totalKills++;
+            int earned = (int)(dead.coinDrop * player.coinMultiplier);
+            coins += earned;
+            spawnDeathParticles(dead);
+            spawnBloodDecal(dead);
+        }
+        enemies.removeAll(hitByExplosion);
+        float pdx = player.getCenterX() - e.getCenterX();
+        float pdy = player.getCenterY() - e.getCenterY();
+        float pdist = (float)Math.sqrt(pdx*pdx + pdy*pdy);
+        if (pdist < 100 && !player.isDashing() && !player.isSuperInvincible() && player.shieldTimer <= 0) {
+            player.takeDamage(2);
+            damageFlashTicks = 16;
+            spawnFloatText(player.getCenterX(), player.getCenterY()-20, "-2 HP", 255, 60, 60);
+        }
+        for (int i = 0; i < 30; i++) {
+            float ang = (float)(Math.random() * Math.PI * 2);
+            float spd = 2f + (float)Math.random() * 6f;
+            particles.add(new float[]{
+                e.getCenterX(), e.getCenterY(),
+                (float)Math.cos(ang)*spd, (float)Math.sin(ang)*spd,
+                20 + (float)Math.random()*12, 28, 255, 180 + (int)(Math.random()*75), 30
+            });
+        }
+    }
+
+    private void applyLootEffect(LootDrop.Type type) {
+        switch (type) {
+            case HEALTH -> {
+                player.hp = Math.min(player.maxHp, player.hp + 3);
+                spawnFloatText(player.getCenterX(), player.getCenterY()-30, "+3 HP", 100, 255, 100, 16);
+            }
+            case SPEED -> {
+                player.speedBoostTimer = 600;
+                spawnFloatText(player.getCenterX(), player.getCenterY()-30, "SPEED BOOST!", 0, 200, 255, 16);
+            }
+            case DAMAGE -> {
+                player.damageBoostTimer = 600;
+                spawnFloatText(player.getCenterX(), player.getCenterY()-30, "DAMAGE UP!", 255, 100, 0, 16);
+            }
+            case SHIELD -> {
+                player.shieldTimer = 300;
+                spawnFloatText(player.getCenterX(), player.getCenterY()-30, "SHIELD!", 80, 80, 255, 16);
+            }
+            case NUKE -> {
+                nukeFlashTicks = 20;
+                List<Enemy> allEnemies = new ArrayList<>(enemies);
+                for (Enemy e : allEnemies) {
+                    e.hp -= 8;
+                    e.hitFlash = 10;
+                    if (e.hp <= 0) {
+                        totalKills++;
+                        int earned = (int)(e.coinDrop * player.coinMultiplier);
+                        coins += earned;
+                        spawnDeathParticles(e);
+                        spawnBloodDecal(e);
+                    }
+                }
+                enemies.removeIf(e -> e.hp <= 0);
+                addScreenShake(15, 12);
+                spawnFloatText(player.getCenterX(), player.getCenterY()-40, "NUKE!", 255, 40, 255, 20);
+            }
+            case MAGNET -> {
+                player.coinMagnetTimer = 900;
+                spawnFloatText(player.getCenterX(), player.getCenterY()-30, "COIN MAGNET!", 255, 215, 0, 16);
+            }
         }
     }
 
@@ -392,7 +657,8 @@ import java.util.List;
         }
 
         int baseDamage = player.getEffectiveDamage();
-        if (Math.random() < player.critChance) {
+        boolean isCrit = Math.random() < player.critChance;
+        if (isCrit) {
             baseDamage += 2;
             spawnFloatText(player.getCenterX(), player.getCenterY()-30, "CRIT!", 255, 80, 0, 15);
         }
@@ -407,12 +673,12 @@ import java.util.List;
         }
     }
 
-    // ── Particles ─────────────────────────────────────────────────
-
     private void spawnDeathParticles(Enemy e) {
         float cx = e.getCenterX(), cy = e.getCenterY();
-        Color c = e.elite ? new Color(180, 60, 255) : new Color(220, 30, 30);
-
+        Color c = e.elite ? new Color(180, 60, 255)
+            : e.type == EnemyType.BOSS ? new Color(255, 40, 40)
+            : e.type == EnemyType.EXPLODER ? new Color(255, 200, 30)
+            : new Color(220, 30, 30);
         for (int i = 0; i < 25; i++) {
             float ang = (float)(Math.random() * Math.PI * 2);
             float spd = 1.5f + (float)Math.random() * 5f;
@@ -455,7 +721,10 @@ import java.util.List;
 
     private void spawnBloodDecal(Enemy e) {
         float cx = e.getCenterX(), cy = e.getCenterY();
-        Color c = e.elite ? new Color(130, 30, 170) : new Color(140, 8, 8);
+        Color c = e.elite ? new Color(130, 30, 170)
+            : e.type == EnemyType.BOSS ? new Color(160, 20, 20)
+            : e.type == EnemyType.EXPLODER ? new Color(180, 150, 20)
+            : new Color(140, 8, 8);
         for (int i = 0; i < 4; i++) {
             float bx = cx + (float)(Math.random() - 0.5) * 50;
             float by = cy + (float)(Math.random() - 0.5) * 50;
@@ -465,8 +734,6 @@ import java.util.List;
         }
         if (bloodDecals.size() > 120) bloodDecals.subList(0, bloodDecals.size() - 120).clear();
     }
-
-    // ── Upgrades ─────────────────────────────────────────────────
 
     private void prepareUpgrades() {
         List<String> pool = new ArrayList<>();
@@ -502,17 +769,13 @@ import java.util.List;
             case "CRIT"  -> player.critChance += 0.15f;
             case "COINS" -> player.coinMultiplier += 0.3f;
             case "BLOODLUST" -> killStreakLevel += 1;
-            case "REGEN" -> player.regenTicksLeft = 999_999_999; // FIX: was Integer.MAX_VALUE
+            case "REGEN" -> player.regenTicksLeft = 999_999_999;
             case "WIDE"  -> player.bulletSpreadAngle += 0.15f;
         }
         state = GameState.PLAYING;
         SoundManager.upgradeSelect();
         SoundManager.levelUp();
     }
-
-    // ─────────────────────────────────────────────────────────────
-    //  Rendering
-    // ─────────────────────────────────────────────────────────────
 
     @Override
     protected void paintComponent(Graphics g) {
@@ -551,13 +814,470 @@ import java.util.List;
             g2.drawRect(i, i, GameFrame.WIDTH - i*2, GameFrame.HEIGHT - i*2);
         }
 
-        // Fade overlay
         if (fadeAlpha > 0) {
             g2.setColor(new Color(0, 0, 0, fadeAlpha));
             g2.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
         }
 
         g2.dispose();
+    }
+
+    private void drawGame(Graphics2D screenG) {
+        Graphics2D g = gameBuffer.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        g.setColor(new Color(5, 8, 6));
+        g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
+
+        drawBackground(g);
+
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.translate(-cameraX + screenShakeX, -cameraY + screenShakeY);
+
+        // Blood decals
+        for (float[] b : bloodDecals) {
+            int alpha = Math.min(255, (int)b[6]);
+            g2.setColor(new Color((int)b[3], (int)b[4], (int)b[5], alpha));
+            g2.fillOval((int)(b[0]-b[2]/2), (int)(b[1]-b[2]/2), (int)b[2], (int)b[2]);
+        }
+
+        // Particles
+        for (float[] p : particles) {
+            float lr = p[4] / p[5];
+            int a  = Math.max(0, Math.min(255, (int)(lr * 230)));
+            int r  = Math.max(0, Math.min(255, (int)p[6]));
+            int gv = Math.max(0, Math.min(255, (int)p[7]));
+            int bv = Math.max(0, Math.min(255, (int)p[8]));
+            g2.setColor(new Color(r, gv, bv, a));
+            int sz = Math.max(2, (int)(5 * lr));
+            g2.fillOval((int)p[0]-sz/2, (int)p[1]-sz/2, sz, sz);
+        }
+
+        // Barrels
+        for (ExplosiveBarrel barrel : barrels) barrel.draw(g2);
+
+        // Damage vignette
+        if (damageFlashTicks > 0) {
+            int fa = Math.min(180, damageFlashTicks * 14);
+            for (int i = 0; i < 22; i++) {
+                g2.setColor(new Color(220, 0, 0, Math.max(0, Math.min(255, fa - i*8))));
+                g2.drawRect(i, i, GameFrame.WIDTH-i*2, GameFrame.HEIGHT-i*2);
+            }
+        }
+
+        // Nuke flash
+        if (nukeFlashTicks > 0) {
+            int alpha = nukeFlashTicks * 12;
+            g2.setColor(new Color(255, 255, 200, Math.min(200, alpha)));
+            g2.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
+        }
+
+        for (Bullet b : bullets) b.draw(g2);
+        for (EnemyProjectile eb : enemyBullets) eb.draw(g2);
+        for (Enemy e : enemies) e.draw(g2);
+        for (LootDrop ld : lootDrops) ld.draw(g2);
+        for (DamageNumber dn : damageNumbers) dn.draw(g2);
+
+        double aim = Math.atan2(mouseY - (player.getCenterY() - cameraY), mouseX - (player.getCenterX() - cameraX)) + Math.PI/2;
+        Graphics2D playerG = (Graphics2D) g2.create();
+        playerG.translate(0, -characterBobOffset);
+        player.draw(playerG, aim, characterImages);
+        playerG.dispose();
+
+        // Floating texts
+        for (Object[] ft : floatTexts) {
+            int life = (int)ft[3];
+            if (life <= 0) continue;
+            float lifeR = life / 55f;
+            int a = (int)(lifeR * 240);
+            int size = ft.length > 8 ? (int)ft[8] : 13;
+            g2.setFont(new Font("Monospaced", Font.BOLD, size));
+            g2.setColor(new Color(0, 0, 0, a/3));
+            g2.drawString((String)ft[4], (int)((float)(Float)ft[0] + 1), (int)((float)(Float)ft[1] + 1));
+            g2.setColor(new Color((int)ft[5], (int)ft[6], (int)ft[7], Math.min(255, a)));
+            g2.drawString((String)ft[4], (int)(float)(Float)ft[0], (int)(float)(Float)ft[1]);
+        }
+
+        // Wave banner
+        if (waveFlashTicks > 0) {
+            float alpha = Math.min(1f, waveFlashTicks / 40f);
+            int bw = 320, bh = 64, bx = GameFrame.WIDTH/2-bw/2, by = GameFrame.HEIGHT/2-bh/2;
+            g2.setColor(new Color(0, 200, 80, (int)(alpha*25)));
+            g2.fillRoundRect(bx-8, by-8, bw+16, bh+16, 24, 24);
+            g2.setColor(new Color(5, 15, 10, (int)(alpha*210)));
+            g2.fillRoundRect(bx, by, bw, bh, 16, 16);
+            g2.setColor(new Color(60, 200, 80, (int)(alpha*160)));
+            g2.setStroke(new BasicStroke(2));
+            g2.drawRoundRect(bx, by, bw, bh, 16, 16);
+            g2.setStroke(new BasicStroke(1));
+            g2.setFont(FONT_MONO_BOLD_26);
+            g2.setColor(new Color(100, 255, 130, (int)(alpha*255)));
+            String wt = waveManager.isBossWave() ? "-- BOSS WAVE " + waveManager.getCurrentWave() + " --" : "-- WAVE " + waveManager.getCurrentWave() + " --";
+            FontMetrics fm = g2.getFontMetrics();
+            g2.drawString(wt, GameFrame.WIDTH/2 - fm.stringWidth(wt)/2, GameFrame.HEIGHT/2 + 9);
+        }
+
+        // Combo display
+        if (comboDisplayTicks > 0 && comboCount >= 5) {
+            float alpha = comboDisplayTicks / 60f;
+            g2.setFont(FONT_MONO_BOLD_22);
+            String combo = comboCount + "x COMBO!";
+            FontMetrics fm = g2.getFontMetrics();
+            g2.setColor(new Color(255, 200, 0, (int)(alpha*255)));
+            g2.drawString(combo, GameFrame.WIDTH/2 - fm.stringWidth(combo)/2, 100);
+        }
+
+        g2.dispose();
+
+        drawLighting(g, cameraX, cameraY);
+
+        for (float[] ap : ambientParticles) {
+            g.setColor(new Color(200, 210, 180, 30));
+            g.fillOval((int)ap[0], (int)ap[1], (int)ap[4], (int)ap[4]);
+        }
+
+        g.dispose();
+
+        if (damageFlashTicks > 10) {
+            int offset = (damageFlashTicks - 10) / 2;
+            screenG.setColor(new Color(255, 0, 0, 30));
+            screenG.drawImage(gameBuffer, offset, 0, null);
+            screenG.setColor(new Color(0, 0, 255, 30));
+            screenG.drawImage(gameBuffer, -offset, 0, null);
+        }
+        screenG.drawImage(gameBuffer, 0, 0, null);
+
+        drawDangerArrows(screenG, cameraX, cameraY);
+        drawCrosshair(screenG, mouseX, mouseY);
+        drawHitMarker(screenG);
+        drawHUD(screenG);
+        drawAbilityIcons(screenG);
+
+        // Weather overlay
+        weather.draw(screenG);
+    }
+
+    private void drawHitMarker(Graphics2D g) {
+        if (hitMarkerTicks <= 0) return;
+        int alpha = Math.min(200, hitMarkerTicks * 20);
+        int size = 24 + (12 - hitMarkerTicks);
+        g.setStroke(new BasicStroke(2));
+        g.setColor(new Color(255, 215, 80, alpha));
+        g.drawOval(mouseX - size/2, mouseY - size/2, size, size);
+        g.drawLine(mouseX - size/2, mouseY, mouseX + size/2, mouseY);
+        g.drawLine(mouseX, mouseY - size/2, mouseX, mouseY + size/2);
+        g.setStroke(new BasicStroke(1));
+    }
+
+    private void drawLighting(Graphics2D g, float camX, float camY) {
+        Graphics2D d = darknessBuffer.createGraphics();
+        d.setComposite(AlphaComposite.Clear);
+        d.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
+        d.setComposite(AlphaComposite.SrcOver);
+
+        d.setColor(new Color(6, 12, 10, 200));
+        d.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
+
+        float radius = 185f + (float)(Math.sin(animTick * 0.07) * 15);
+        float px = player.getCenterX() - camX;
+        float py = player.getCenterY() - camY;
+
+        d.setComposite(AlphaComposite.DstOut);
+        RadialGradientPaint torch = new RadialGradientPaint(
+            px, py, radius,
+            new float[]{0f, 0.35f, 1f},
+            new Color[]{new Color(255, 250, 220, 0), new Color(255, 250, 220, 50), new Color(0, 0, 0, 220)}
+        );
+        d.setPaint(torch);
+        d.fillOval((int)(px-radius), (int)(py-radius), (int)(radius*2), (int)(radius*2));
+
+        for (Enemy e : enemies) {
+            if (e.elite || e.type == EnemyType.BOSS) {
+                float er = e.type == EnemyType.BOSS ? 80f : 50f;
+                float ex = e.getCenterX() - camX;
+                float ey = e.getCenterY() - camY;
+                if (ex > -er && ex < GameFrame.WIDTH+er && ey > -er && ey < GameFrame.HEIGHT+er) {
+                    Color glowC = e.type == EnemyType.BOSS ? new Color(255, 40, 40, 130) : new Color(180, 60, 255, 130);
+                    RadialGradientPaint eliteGlow = new RadialGradientPaint(
+                        ex, ey, er, new float[]{0f, 1f},
+                        new Color[]{new Color(glowC.getRed(), glowC.getGreen(), glowC.getBlue(), 0), glowC}
+                    );
+                    d.setPaint(eliteGlow);
+                    d.fillOval((int)(ex-er), (int)(ey-er), (int)(er*2), (int)(er*2));
+                }
+            }
+        }
+
+        // Loot glow
+        for (LootDrop ld : lootDrops) {
+            float lx = ld.x - camX;
+            float ly = ld.y - camY;
+            Color lc = ld.getColor();
+            RadialGradientPaint lootGlow = new RadialGradientPaint(
+                lx, ly, 25f, new float[]{0f, 1f},
+                new Color[]{new Color(lc.getRed(), lc.getGreen(), lc.getBlue(), 0), new Color(lc.getRed(), lc.getGreen(), lc.getBlue(), 80)}
+            );
+            d.setPaint(lootGlow);
+            d.fillOval((int)(lx-25), (int)(ly-25), 50, 50);
+        }
+
+        d.dispose();
+        g.drawImage(darknessBuffer, 0, 0, null);
+    }
+
+    private void drawDangerArrows(Graphics2D g, float camX, float camY) {
+        int margin = 36, cx = GameFrame.WIDTH/2, cy = GameFrame.HEIGHT/2;
+        for (Enemy e : enemies) {
+            float ex2 = e.getCenterX() - camX, ey2 = e.getCenterY() - camY;
+            if (ex2 >= 0 && ex2 <= GameFrame.WIDTH && ey2 >= 52 && ey2 <= GameFrame.HEIGHT) continue;
+            float dx = ex2 - cx, dy = ey2 - cy;
+            float len = (float)Math.sqrt(dx*dx + dy*dy);
+            if (len == 0) continue;
+            dx /= len; dy /= len;
+            float ax = Math.max(margin, Math.min(GameFrame.WIDTH-margin, cx + dx*(GameFrame.WIDTH/2f-margin)));
+            float ay = Math.max(margin+52, Math.min(GameFrame.HEIGHT-margin, cy + dy*(GameFrame.HEIGHT/2f-margin)));
+            double ang = Math.atan2(dy, dx);
+            java.awt.geom.AffineTransform old2 = g.getTransform();
+            g.translate(ax, ay); g.rotate(ang);
+            g.setColor(new Color(255, 60, 60, e.elite || e.type == EnemyType.BOSS ? 200 : 140));
+            g.setStroke(new BasicStroke(2));
+            g.fillPolygon(new int[]{0, -8, -8}, new int[]{0, -5, 5}, 3);
+            g.drawLine(-8, 0, -16, 0);
+            g.setTransform(old2); g.setStroke(new BasicStroke(1));
+        }
+    }
+
+    private void drawAbilityIcons(Graphics2D g) {
+        int baseX = GameFrame.WIDTH-120, baseY = GameFrame.HEIGHT-46;
+        float dashR = 1f - (float)player.dashCooldown / Player.DASH_COOLDOWN_MAX;
+        drawCircleIcon(g, baseX, baseY, dashR, player.isDashing(),
+            player.dashCooldown == 0 ? new Color(0, 220, 255) : new Color(0, 140, 200), "DASH");
+
+        float superR = 1f - (float)player.superCooldown / Player.SUPER_COOLDOWN_MAX;
+        String superLabel = switch(player.character) {
+            case SOLDIER -> "FIRE"; case MAGE -> "MAGE"; case TANK -> "SHLD"; case ROGUE -> "SPNT";
+        };
+        Color superCol = switch(player.character) {
+            case SOLDIER -> new Color(255, 220, 0); case MAGE -> new Color(220, 60, 255);
+            case TANK    -> new Color(60, 220, 60);  case ROGUE -> new Color(255, 140, 0);
+        };
+        drawCircleIcon(g, baseX+60, baseY, superR, player.superActive, superCol, superLabel);
+    }
+
+    private void drawCircleIcon(Graphics2D g, int x, int y, float fill, boolean active, Color col, String label) {
+        int r = 20;
+        g.setColor(new Color(0, 0, 0, 140)); g.fillOval(x-r, y-r, r*2, r*2);
+        g.setColor(active ? col : col.darker());
+        g.setStroke(new BasicStroke(3));
+        g.drawArc(x-r, y-r, r*2, r*2, 90, -(int)(360*fill));
+        if (fill >= 1f) {
+            g.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), 60));
+            g.fillOval(x-r, y-r, r*2, r*2);
+        }
+        g.setColor(new Color(0, 0, 0, 80)); g.setStroke(new BasicStroke(1));
+        g.drawOval(x-r, y-r, r*2, r*2);
+        g.setFont(FONT_MONO_BOLD_8);
+        FontMetrics fm = g.getFontMetrics();
+        g.setColor(fill >= 1f ? col : new Color(150, 150, 150));
+        g.drawString(label, x - fm.stringWidth(label)/2, y+3);
+        g.setStroke(new BasicStroke(1));
+    }
+
+    private void drawCrosshair(Graphics2D g, int cx, int cy) {
+        float expand = crosshairPulse / 8f;
+        int gap = (int)(6 + expand*8), len = (int)(9 - expand*3);
+        float alpha = 1f - expand*0.3f;
+        g.setStroke(new BasicStroke(1.5f + expand));
+        g.setColor(new Color(0, 0, 0, 80));
+        g.drawLine(cx-gap-len-1, cy, cx-gap-1, cy); g.drawLine(cx+gap+1, cy, cx+gap+len+1, cy);
+        g.drawLine(cx, cy-gap-len-1, cx, cy-gap-1); g.drawLine(cx, cy+gap+1, cx, cy+gap+len+1);
+        g.setColor(new Color(80, (int)(200+55*alpha), 120, (int)(200*alpha)));
+        g.drawLine(cx-gap-len, cy, cx-gap, cy); g.drawLine(cx+gap, cy, cx+gap+len, cy);
+        g.drawLine(cx, cy-gap-len, cx, cy-gap); g.drawLine(cx, cy+gap, cx, cy+gap+len);
+        g.setColor(crosshairPulse > 0 ? new Color(255, 80, 80, 200) : new Color(80, 255, 120, 180));
+        g.fillOval(cx-2, cy-2, 4, 4);
+        if (crosshairPulse > 4) {
+            float ringR = expand * 18;
+            g.setColor(new Color(255, 200, 80, (int)(crosshairPulse * 18)));
+            g.setStroke(new BasicStroke(1));
+            g.drawOval(cx-(int)ringR, cy-(int)ringR, (int)(ringR*2), (int)(ringR*2));
+        }
+        g.setStroke(new BasicStroke(1));
+    }
+
+    private void drawHUD(Graphics2D g) {
+        g.setColor(new Color(0, 0, 0, 190));
+        g.fillRect(0, 0, GameFrame.WIDTH, 52);
+        g.setColor(new Color(40, 120, 60, 60));
+        g.fillRect(0, 50, GameFrame.WIDTH, 2);
+
+        int secs = survivalTicks/60, mins = secs/60; secs %= 60;
+        String timer = String.format("%02d:%02d", mins, secs);
+        g.setFont(FONT_MONO_BOLD_22);
+        FontMetrics fm = g.getFontMetrics();
+        g.setColor(new Color(0, 0, 0, 100));
+        g.fillRoundRect(GameFrame.WIDTH/2-46, 7, 92, 36, 8, 8);
+        g.setColor(new Color(100, 220, 130));
+        g.drawString(timer, GameFrame.WIDTH/2 - fm.stringWidth(timer)/2, 33);
+
+        if (killStreak > 1) {
+            g.setFont(FONT_MONO_BOLD_13);
+            String streak = "COMBO x" + killStreak;
+            g.setColor(new Color(255, 220, 100, 210));
+            g.drawString(streak, GameFrame.WIDTH/2 - g.getFontMetrics().stringWidth(streak)/2, 52);
+            g.setColor(new Color(255, 255, 255, 60));
+            g.drawString("Keep the streak alive!", GameFrame.WIDTH/2 - g.getFontMetrics().stringWidth("Keep the streak alive!")/2, 66);
+        }
+
+        g.setFont(FONT_MONO_BOLD_13);
+        g.setColor(new Color(0, 0, 0, 110));
+        g.fillRoundRect(8, 8, 115, 34, 6, 6);
+        g.setColor(new Color(60, 180, 80, 130));
+        g.setStroke(new BasicStroke(1));
+        g.drawRoundRect(8, 8, 115, 34, 6, 6);
+        g.setColor(new Color(80, 220, 100));
+        String waveText = waveManager.isBossWave() ? "BOSS " + waveManager.getCurrentWave() : "WAVE " + waveManager.getCurrentWave();
+        g.drawString(waveText, 16, 31);
+
+        String ks = totalKills + " kills";
+        fm = g.getFontMetrics();
+        int ksw = fm.stringWidth(ks);
+        g.setColor(new Color(0, 0, 0, 110));
+        g.fillRoundRect(GameFrame.WIDTH-ksw-24, 8, ksw+16, 34, 6, 6);
+        g.setColor(killFlashTicks > 0 ? new Color(255, 230, 0) : new Color(160, 200, 160));
+        g.drawString(ks, GameFrame.WIDTH-ksw-16, 31);
+
+        String cs = "$ " + coins;
+        fm = g.getFontMetrics();
+        g.setColor(new Color(255, 215, 40));
+        g.drawString(cs, 134, 25);
+        g.setFont(FONT_MONO_PLAIN_10);
+        g.setColor(new Color(200, 200, 150));
+        g.drawString("B: Shop", 134, 40);
+
+        g.setColor(new Color(0, 0, 0, 170));
+        g.fillRect(0, GameFrame.HEIGHT-48, GameFrame.WIDTH, 48);
+        g.setColor(new Color(40, 120, 60, 50));
+        g.fillRect(0, GameFrame.HEIGHT-48, GameFrame.WIDTH, 1);
+
+        int barX = 10, barY = GameFrame.HEIGHT-36, barW = 180, barH = 16;
+
+        g.setColor(new Color(60, 0, 0));
+        g.fillRoundRect(barX, barY, barW, barH, 6, 6);
+        float hpR = (float)player.hp / player.maxHp;
+        Color hpC = hpR > 0.6f ? new Color(60, 210, 80) : hpR > 0.3f ? new Color(220, 160, 0) : new Color(220, 40, 40);
+        if (hpR < 0.3f) { double p2 = 0.7 + 0.3 * Math.sin(animTick*0.2); hpC = new Color((int)(210*p2), 40, 40); }
+        g.setColor(hpC);
+        g.fillRoundRect(barX, barY, (int)(barW*hpR), barH, 6, 6);
+        g.setColor(new Color(255, 255, 255, 35));
+        g.fillRoundRect(barX, barY, (int)(barW*hpR), barH/2, 6, 6);
+        g.setFont(FONT_MONO_BOLD_11);
+        g.setColor(new Color(240, 240, 240, 200));
+        g.drawString("HP " + player.hp + "/" + player.maxHp, barX+4, barY+12);
+        g.setColor(new Color(120, 120, 120, 80));
+        g.setStroke(new BasicStroke(1));
+        g.drawRoundRect(barX, barY, barW, barH, 6, 6);
+
+        int xpX = barX, xpY = barY+20, xpW = barW, xpH = 8;
+        g.setColor(new Color(0, 0, 60));
+        g.fillRoundRect(xpX, xpY, xpW, xpH, 4, 4);
+        float xpR = (float)xp / xpToNext;
+        g.setColor(new Color(60, 100, 255));
+        g.fillRoundRect(xpX, xpY, (int)(xpW*xpR), xpH, 4, 4);
+        g.setColor(new Color(100, 140, 255, 60));
+        g.fillRoundRect(xpX, xpY, (int)(xpW*xpR), xpH/2, 4, 4);
+
+        g.setFont(FONT_MONO_BOLD_12);
+        g.setColor(new Color(0, 0, 0, 120));
+        g.fillRoundRect(barX+barW+6, barY, 40, 36, 6, 6);
+        g.setColor(new Color(80, 120, 255));
+        g.drawString("Lv", barX+barW+10, barY+13);
+        g.setFont(FONT_MONO_BOLD_14);
+        g.setColor(new Color(140, 170, 255));
+        g.drawString("" + level, barX+barW+13, barY+30);
+
+        if (player.armor > 0) {
+            g.setFont(FONT_MONO_BOLD_12);
+            g.setColor(new Color(100, 180, 255));
+            g.drawString("[" + player.armor + "]", barX+barW+58, barY+13);
+        }
+
+        g.setFont(FONT_MONO_BOLD_12);
+        float dashReady = 1f - (float)player.dashCooldown / Player.DASH_COOLDOWN_MAX;
+        if (dashReady < 1f) {
+            g.setColor(new Color(100, 180, 255));
+            g.drawString("DASH", barX+barW+100, barY+13);
+            g.setColor(new Color(40, 80, 120));
+            g.fillRect(barX+barW+100, barY+16, 40, 4);
+            g.setColor(new Color(0, 200, 255));
+            g.fillRect(barX+barW+100, barY+16, (int)(40*dashReady), 4);
+        } else {
+            g.setColor(new Color(0, 255, 150));
+            g.drawString("DASH", barX+barW+100, barY+13);
+            g.fillRect(barX+barW+100, barY+16, 40, 4);
+        }
+
+        float superReady = 1f - (float)player.superCooldown / Player.SUPER_COOLDOWN_MAX;
+        String superName = switch(player.character) {
+            case SOLDIER -> "RAPID"; case MAGE -> "POWER"; case TANK -> "SHIELD"; case ROGUE -> "SPEED";
+        };
+        if (superReady < 1f || player.superActive) {
+            Color superColor = player.superActive ? Color.YELLOW : new Color(150, 100, 200);
+            g.setColor(superColor); g.drawString(superName, barX+barW+100, barY+25);
+            g.setColor(new Color(60, 40, 80));
+            g.fillRect(barX+barW+100, barY+28, 40, 4);
+            g.setColor(superColor);
+            g.fillRect(barX+barW+100, barY+28, (int)(40*superReady), 4);
+        } else {
+            g.setColor(new Color(200, 150, 255));
+            g.drawString(superName, barX+barW+100, barY+25);
+            g.fillRect(barX+barW+100, barY+28, 40, 4);
+        }
+
+        // Buff indicators
+        int buffX = barX + barW + 155;
+        if (player.speedBoostTimer > 0) {
+            g.setColor(new Color(0, 200, 255, 180));
+            g.fillRoundRect(buffX, barY, 18, 18, 4, 4);
+            g.setColor(Color.WHITE);
+            g.setFont(FONT_MONO_BOLD_10);
+            g.drawString("S", buffX+5, barY+13);
+            buffX += 22;
+        }
+        if (player.damageBoostTimer > 0) {
+            g.setColor(new Color(255, 100, 0, 180));
+            g.fillRoundRect(buffX, barY, 18, 18, 4, 4);
+            g.setColor(Color.WHITE);
+            g.setFont(FONT_MONO_BOLD_10);
+            g.drawString("D", buffX+5, barY+13);
+            buffX += 22;
+        }
+        if (player.shieldTimer > 0) {
+            g.setColor(new Color(80, 80, 255, 180));
+            g.fillRoundRect(buffX, barY, 18, 18, 4, 4);
+            g.setColor(Color.WHITE);
+            g.setFont(FONT_MONO_BOLD_10);
+            g.drawString("O", buffX+5, barY+13);
+            buffX += 22;
+        }
+        if (player.coinMagnetTimer > 0) {
+            g.setColor(new Color(255, 215, 0, 180));
+            g.fillRoundRect(buffX, barY, 18, 18, 4, 4);
+            g.setColor(Color.WHITE);
+            g.setFont(FONT_MONO_BOLD_10);
+            g.drawString("M", buffX+5, barY+13);
+            buffX += 22;
+        }
+
+        String en = enemies.size() + " on field";
+        fm = g.getFontMetrics();
+        g.setColor(new Color(200, 100, 100));
+        g.drawString(en, GameFrame.WIDTH - fm.stringWidth(en) - 12, GameFrame.HEIGHT-14);
+
+        int wpW = (int)(GameFrame.WIDTH * waveManager.getWaveProgress());
+        g.setColor(new Color(60, 200, 80, 60));
+        g.fillRect(0, GameFrame.HEIGHT-3, wpW, 3);
     }
 
     // ── CHARACTER SELECT ──────────────────────────────────────────
@@ -785,7 +1505,6 @@ import java.util.List;
         g.setColor(new Color(0, 0, 0, 200));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
-        // Decorative border
         g.setColor(new Color(255, 215, 40, 60));
         g.setStroke(new BasicStroke(2));
         g.drawRoundRect(20, 20, GameFrame.WIDTH-40, GameFrame.HEIGHT-40, 20, 20);
@@ -829,17 +1548,14 @@ import java.util.List;
     }
 
     private void drawInGameShopItem(Graphics2D g, int x, int y, int w, int h, String name, int cost, String desc, boolean canAfford, int number) {
-        // Background
         g.setColor(canAfford ? new Color(20, 45, 20) : new Color(30, 30, 30));
         g.fillRoundRect(x, y, w, h, 8, 8);
 
-        // Border
         g.setColor(canAfford ? new Color(60, 180, 80) : new Color(70, 70, 70));
         g.setStroke(new BasicStroke(1.5f));
         g.drawRoundRect(x, y, w, h, 8, 8);
         g.setStroke(new BasicStroke(1));
 
-        // Number badge
         g.setColor(canAfford ? new Color(60, 200, 80, 50) : new Color(50, 50, 50, 50));
         g.fillRoundRect(x+6, y+6, 20, 18, 4, 4);
         g.setFont(FONT_MONO_BOLD_14);
@@ -886,11 +1602,10 @@ import java.util.List;
         g.setColor(new Color(8, 18, 12));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
-        // FIX: use field bgRandom, reset seed so pattern stays consistent
         bgRandom.setSeed(42);
         for (int i = 0; i < 18; i++) {
             int bx = bgRandom.nextInt(GameFrame.WIDTH), by = 56 + bgRandom.nextInt(GameFrame.HEIGHT-80);
-            int bw = 30 + bgRandom.nextInt(50),         bh = 20 + bgRandom.nextInt(30);
+            int bw = 30 + bgRandom.nextInt(50), bh = 20 + bgRandom.nextInt(30);
             g.setColor(new Color(18, 38, 22, 60));
             g.fillOval(bx, by, bw, bh);
         }
@@ -995,6 +1710,15 @@ import java.util.List;
             g.drawString(hs, (W - fm.stringWidth(hs)) / 2, 180);
         }
 
+        // Career stats
+        if (saveData != null && saveData.gamesPlayed > 0) {
+            g.setFont(FONT_MONO_PLAIN_11);
+            fm = g.getFontMetrics();
+            String career = "Career: " + saveData.totalKills + " kills | " + saveData.gamesPlayed + " runs";
+            g.setColor(new Color(60, 120, 70, 180));
+            g.drawString(career, (W - fm.stringWidth(career)) / 2, 196);
+        }
+
         int panelX = W/2-170, panelY = 200, panelW = 340, panelH = 150;
         g.setColor(new Color(0, 0, 0, 160));
         g.fillRoundRect(panelX, panelY, panelW, panelH, 12, 12);
@@ -1045,412 +1769,6 @@ import java.util.List;
         String cred = "Tolentino & Tanchico  |  Prog 2 Finals  |  UPHSD Molino";
         g.setColor(new Color(35, 75, 45));
         g.drawString(cred, (W - fm.stringWidth(cred)) / 2, H-10);
-    }
-
-    // ── GAMEPLAY ─────────────────────────────────────────────────
-
-    private void drawGame(Graphics2D screenG) {
-        Graphics2D g = gameBuffer.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
-        g.setColor(new Color(5, 8, 6));
-        g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
-
-        drawBackground(g);
-
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.translate(-cameraX + screenShakeX, -cameraY + screenShakeY);
-
-        // Blood decals
-        for (float[] b : bloodDecals) {
-            int alpha = Math.min(255, (int)b[6]);
-            g2.setColor(new Color((int)b[3], (int)b[4], (int)b[5], alpha));
-            g2.fillOval((int)(b[0]-b[2]/2), (int)(b[1]-b[2]/2), (int)b[2], (int)b[2]);
-        }
-
-        // Particles
-        for (float[] p : particles) {
-            float lr = p[4] / p[5];
-            int a  = Math.max(0, Math.min(255, (int)(lr * 230)));
-            int r  = Math.max(0, Math.min(255, (int)p[6]));
-            int gv = Math.max(0, Math.min(255, (int)p[7]));
-            int bv = Math.max(0, Math.min(255, (int)p[8]));
-            g2.setColor(new Color(r, gv, bv, a));
-            int sz = Math.max(2, (int)(5 * lr));
-            g2.fillOval((int)p[0]-sz/2, (int)p[1]-sz/2, sz, sz);
-        }
-
-        // Damage vignette
-        if (damageFlashTicks > 0) {
-            int fa = Math.min(180, damageFlashTicks * 14);
-            for (int i = 0; i < 22; i++) {
-                g2.setColor(new Color(220, 0, 0, Math.max(0, Math.min(255, fa - i*8))));
-                g2.drawRect(i, i, GameFrame.WIDTH-i*2, GameFrame.HEIGHT-i*2);
-            }
-        }
-
-        for (Bullet b : bullets) b.draw(g2);
-        for (Enemy e : enemies)  e.draw(g2);
-
-        double aim = Math.atan2(mouseY - (player.getCenterY() - cameraY), mouseX - (player.getCenterX() - cameraX)) + Math.PI/2;
-        Graphics2D playerG = (Graphics2D) g2.create();
-        playerG.translate(0, -characterBobOffset);
-        player.draw(playerG, aim, characterImages);
-        playerG.dispose();
-
-        // Floating texts
-        for (Object[] ft : floatTexts) {
-            int life = (int)ft[3];
-            if (life <= 0) continue;
-            float lifeR = life / 55f;
-            int a    = (int)(lifeR * 240);
-            int size = ft.length > 8 ? (int)ft[8] : 13;
-            g2.setFont(new Font("Monospaced", Font.BOLD, size));
-            g2.setColor(new Color(0, 0, 0, a/3));
-            g2.drawString((String)ft[4], (int)((float)(Float)ft[0] + 1), (int)((float)(Float)ft[1] + 1));
-            g2.setColor(new Color((int)ft[5], (int)ft[6], (int)ft[7], Math.min(255, a)));
-            g2.drawString((String)ft[4], (int)(float)(Float)ft[0], (int)(float)(Float)ft[1]);
-        }
-
-        // Wave banner
-        if (waveFlashTicks > 0) {
-            float alpha = Math.min(1f, waveFlashTicks / 40f);
-            int bw = 320, bh = 64, bx = GameFrame.WIDTH/2-bw/2, by = GameFrame.HEIGHT/2-bh/2;
-            g2.setColor(new Color(0, 200, 80, (int)(alpha*25)));
-            g2.fillRoundRect(bx-8, by-8, bw+16, bh+16, 24, 24);
-            g2.setColor(new Color(5, 15, 10, (int)(alpha*210)));
-            g2.fillRoundRect(bx, by, bw, bh, 16, 16);
-            g2.setColor(new Color(60, 200, 80, (int)(alpha*160)));
-            g2.setStroke(new BasicStroke(2));
-            g2.drawRoundRect(bx, by, bw, bh, 16, 16);
-            g2.setStroke(new BasicStroke(1));
-            g2.setFont(FONT_MONO_BOLD_26);
-            g2.setColor(new Color(100, 255, 130, (int)(alpha*255)));
-            String wt = "-- WAVE " + waveManager.getCurrentWave() + " --";
-            FontMetrics fm = g2.getFontMetrics();
-            g2.drawString(wt, GameFrame.WIDTH/2 - fm.stringWidth(wt)/2, GameFrame.HEIGHT/2 + 9);
-        }
-
-        g2.dispose();
-
-        // FIX: reuse darknessBuffer instead of allocating new BufferedImage each frame
-        drawLighting(g, cameraX, cameraY);
-
-        // Ambient dust
-        for (float[] ap : ambientParticles) {
-            g.setColor(new Color(200, 210, 180, 30));
-            g.fillOval((int)ap[0], (int)ap[1], (int)ap[4], (int)ap[4]);
-        }
-
-        g.dispose();
-
-        if (damageFlashTicks > 10) {
-            int offset = (damageFlashTicks - 10) / 2;
-            screenG.setColor(new Color(255, 0, 0, 30));
-            screenG.drawImage(gameBuffer, offset, 0, null);
-            screenG.setColor(new Color(0, 0, 255, 30));
-            screenG.drawImage(gameBuffer, -offset, 0, null);
-        }
-        screenG.drawImage(gameBuffer, 0, 0, null);
-
-        drawDangerArrows(screenG, cameraX, cameraY);
-        drawCrosshair(screenG, mouseX, mouseY);
-        drawHitMarker(screenG);
-        drawHUD(screenG);
-        drawAbilityIcons(screenG);
-    }
-
-    private void drawHitMarker(Graphics2D g) {
-        if (hitMarkerTicks <= 0) return;
-        int alpha = Math.min(200, hitMarkerTicks * 20);
-        int size = 24 + (12 - hitMarkerTicks);
-        g.setStroke(new BasicStroke(2));
-        g.setColor(new Color(255, 215, 80, alpha));
-        g.drawOval(mouseX - size/2, mouseY - size/2, size, size);
-        g.drawLine(mouseX - size/2, mouseY, mouseX + size/2, mouseY);
-        g.drawLine(mouseX, mouseY - size/2, mouseX, mouseY + size/2);
-        g.setStroke(new BasicStroke(1));
-    }
-
-    private void drawLighting(Graphics2D g, float camX, float camY) {
-        // FIX: reuse darknessBuffer — no per-frame allocation
-        Graphics2D d = darknessBuffer.createGraphics();
-
-        // Clear previous frame
-        d.setComposite(AlphaComposite.Clear);
-        d.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
-        d.setComposite(AlphaComposite.SrcOver);
-
-        d.setColor(new Color(6, 12, 10, 200));
-        d.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
-
-        float radius = 185f + (float)(Math.sin(animTick * 0.07) * 15);
-        float px = player.getCenterX() - camX;
-        float py = player.getCenterY() - camY;
-
-        d.setComposite(AlphaComposite.DstOut);
-        RadialGradientPaint torch = new RadialGradientPaint(
-            px, py, radius,
-            new float[]{0f, 0.35f, 1f},
-            new Color[]{new Color(255, 250, 220, 0), new Color(255, 250, 220, 50), new Color(0, 0, 0, 220)}
-        );
-        d.setPaint(torch);
-        d.fillOval((int)(px-radius), (int)(py-radius), (int)(radius*2), (int)(radius*2));
-
-        for (Enemy e : enemies) {
-            if (e.elite) {
-                float er = 50f;
-                float ex = e.getCenterX() - camX;
-                float ey = e.getCenterY() - camY;
-                if (ex > -er && ex < GameFrame.WIDTH+er && ey > -er && ey < GameFrame.HEIGHT+er) {
-                    RadialGradientPaint eliteGlow = new RadialGradientPaint(
-                        ex, ey, er,
-                        new float[]{0f, 1f},
-                        new Color[]{new Color(180, 60, 255, 0), new Color(180, 60, 255, 130)}
-                    );
-                    d.setPaint(eliteGlow);
-                    d.fillOval((int)(ex-er), (int)(ey-er), (int)(er*2), (int)(er*2));
-                }
-            }
-        }
-
-        d.dispose();
-        g.drawImage(darknessBuffer, 0, 0, null);
-    }
-
-    private void drawDangerArrows(Graphics2D g, float camX, float camY) {
-        int margin = 36, cx = GameFrame.WIDTH/2, cy = GameFrame.HEIGHT/2;
-        for (Enemy e : enemies) {
-            float ex2 = e.getCenterX() - camX, ey2 = e.getCenterY() - camY;
-            if (ex2 >= 0 && ex2 <= GameFrame.WIDTH && ey2 >= 52 && ey2 <= GameFrame.HEIGHT) continue;
-            float dx = ex2 - cx, dy = ey2 - cy;
-            float len = (float)Math.sqrt(dx*dx + dy*dy);
-            if (len == 0) continue;
-            dx /= len; dy /= len;
-            float ax = Math.max(margin, Math.min(GameFrame.WIDTH-margin,  cx + dx*(GameFrame.WIDTH/2f-margin)));
-            float ay = Math.max(margin+52, Math.min(GameFrame.HEIGHT-margin, cy + dy*(GameFrame.HEIGHT/2f-margin)));
-            double ang = Math.atan2(dy, dx);
-            java.awt.geom.AffineTransform old2 = g.getTransform();
-            g.translate(ax, ay); g.rotate(ang);
-            g.setColor(new Color(255, 60, 60, e.elite ? 200 : 140));
-            g.setStroke(new BasicStroke(2));
-            g.fillPolygon(new int[]{0, -8, -8}, new int[]{0, -5, 5}, 3);
-            g.drawLine(-8, 0, -16, 0);
-            g.setTransform(old2); g.setStroke(new BasicStroke(1));
-        }
-    }
-
-    private void drawAbilityIcons(Graphics2D g) {
-        int baseX = GameFrame.WIDTH-120, baseY = GameFrame.HEIGHT-46;
-        float dashR = 1f - (float)player.dashCooldown / Player.DASH_COOLDOWN_MAX;
-        drawCircleIcon(g, baseX, baseY, dashR, player.isDashing(),
-            player.dashCooldown == 0 ? new Color(0, 220, 255) : new Color(0, 140, 200), "DASH");
-
-        float superR = 1f - (float)player.superCooldown / Player.SUPER_COOLDOWN_MAX;
-        String superLabel = switch(player.character) {
-            case SOLDIER -> "FIRE"; case MAGE -> "MAGE"; case TANK -> "SHLD"; case ROGUE -> "SPNT";
-        };
-        Color superCol = switch(player.character) {
-            case SOLDIER -> new Color(255, 220, 0); case MAGE -> new Color(220, 60, 255);
-            case TANK    -> new Color(60, 220, 60);  case ROGUE -> new Color(255, 140, 0);
-        };
-        drawCircleIcon(g, baseX+60, baseY, superR, player.superActive, superCol, superLabel);
-    }
-
-    private void drawCircleIcon(Graphics2D g, int x, int y, float fill, boolean active, Color col, String label) {
-        int r = 20;
-        g.setColor(new Color(0, 0, 0, 140)); g.fillOval(x-r, y-r, r*2, r*2);
-        g.setColor(active ? col : col.darker());
-        g.setStroke(new BasicStroke(3));
-        g.drawArc(x-r, y-r, r*2, r*2, 90, -(int)(360*fill));
-        if (fill >= 1f) {
-            g.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), 60));
-            g.fillOval(x-r, y-r, r*2, r*2);
-        }
-        g.setColor(new Color(0, 0, 0, 80)); g.setStroke(new BasicStroke(1));
-        g.drawOval(x-r, y-r, r*2, r*2);
-        g.setFont(FONT_MONO_BOLD_8);
-        FontMetrics fm = g.getFontMetrics();
-        g.setColor(fill >= 1f ? col : new Color(150, 150, 150));
-        g.drawString(label, x - fm.stringWidth(label)/2, y+3);
-        g.setStroke(new BasicStroke(1));
-    }
-
-    private void drawCrosshair(Graphics2D g, int cx, int cy) {
-        float expand = crosshairPulse / 8f;
-        int gap = (int)(6 + expand*8), len = (int)(9 - expand*3);
-        float alpha = 1f - expand*0.3f;
-        g.setStroke(new BasicStroke(1.5f + expand));
-        g.setColor(new Color(0, 0, 0, 80));
-        g.drawLine(cx-gap-len-1, cy, cx-gap-1, cy); g.drawLine(cx+gap+1, cy, cx+gap+len+1, cy);
-        g.drawLine(cx, cy-gap-len-1, cx, cy-gap-1); g.drawLine(cx, cy+gap+1, cx, cy+gap+len+1);
-        g.setColor(new Color(80, (int)(200+55*alpha), 120, (int)(200*alpha)));
-        g.drawLine(cx-gap-len, cy, cx-gap, cy); g.drawLine(cx+gap, cy, cx+gap+len, cy);
-        g.drawLine(cx, cy-gap-len, cx, cy-gap); g.drawLine(cx, cy+gap, cx, cy+gap+len);
-        g.setColor(crosshairPulse > 0 ? new Color(255, 80, 80, 200) : new Color(80, 255, 120, 180));
-        g.fillOval(cx-2, cy-2, 4, 4);
-        if (crosshairPulse > 4) {
-            float ringR = expand * 18;
-            g.setColor(new Color(255, 200, 80, (int)(crosshairPulse * 18)));
-            g.setStroke(new BasicStroke(1));
-            g.drawOval(cx-(int)ringR, cy-(int)ringR, (int)(ringR*2), (int)(ringR*2));
-        }
-        g.setStroke(new BasicStroke(1));
-    }
-
-    // ── HUD ──────────────────────────────────────────────────────
-
-    private void drawHUD(Graphics2D g) {
-        // Top bar
-        g.setColor(new Color(0, 0, 0, 190));
-        g.fillRect(0, 0, GameFrame.WIDTH, 52);
-        g.setColor(new Color(40, 120, 60, 60));
-        g.fillRect(0, 50, GameFrame.WIDTH, 2);
-
-        // Timer
-        int secs = survivalTicks/60, mins = secs/60; secs %= 60;
-        String timer = String.format("%02d:%02d", mins, secs);
-        g.setFont(FONT_MONO_BOLD_22);
-        FontMetrics fm = g.getFontMetrics();
-        g.setColor(new Color(0, 0, 0, 100));
-        g.fillRoundRect(GameFrame.WIDTH/2-46, 7, 92, 36, 8, 8);
-        g.setColor(new Color(100, 220, 130));
-        g.drawString(timer, GameFrame.WIDTH/2 - fm.stringWidth(timer)/2, 33);
-
-        if (killStreak > 1) {
-            g.setFont(FONT_MONO_BOLD_13);
-            String streak = "COMBO x" + killStreak;
-            g.setColor(new Color(255, 220, 100, 210));
-            g.drawString(streak, GameFrame.WIDTH/2 - g.getFontMetrics().stringWidth(streak)/2, 52);
-            g.setColor(new Color(255, 255, 255, 60));
-            g.drawString("Keep the streak alive!", GameFrame.WIDTH/2 - g.getFontMetrics().stringWidth("Keep the streak alive!")/2, 66);
-        }
-
-        // Wave
-        g.setFont(FONT_MONO_BOLD_13);
-        g.setColor(new Color(0, 0, 0, 110));
-        g.fillRoundRect(8, 8, 115, 34, 6, 6);
-        g.setColor(new Color(60, 180, 80, 130));
-        g.setStroke(new BasicStroke(1));
-        g.drawRoundRect(8, 8, 115, 34, 6, 6);
-        g.setColor(new Color(80, 220, 100));
-        g.drawString("WAVE " + waveManager.getCurrentWave(), 16, 31);
-
-        // Kills
-        String ks = totalKills + " kills";
-        fm = g.getFontMetrics();
-        int ksw = fm.stringWidth(ks);
-        g.setColor(new Color(0, 0, 0, 110));
-        g.fillRoundRect(GameFrame.WIDTH-ksw-24, 8, ksw+16, 34, 6, 6);
-        g.setColor(killFlashTicks > 0 ? new Color(255, 230, 0) : new Color(160, 200, 160));
-        g.drawString(ks, GameFrame.WIDTH-ksw-16, 31);
-
-        // Coins
-        String cs = "$ " + coins;
-        fm = g.getFontMetrics();
-        g.setColor(new Color(255, 215, 40));
-        g.drawString(cs, 134, 25);
-        g.setFont(FONT_MONO_PLAIN_10);
-        g.setColor(new Color(200, 200, 150));
-        g.drawString("B: Shop", 134, 40);
-
-        // Bottom bar
-        g.setColor(new Color(0, 0, 0, 170));
-        g.fillRect(0, GameFrame.HEIGHT-48, GameFrame.WIDTH, 48);
-        g.setColor(new Color(40, 120, 60, 50));
-        g.fillRect(0, GameFrame.HEIGHT-48, GameFrame.WIDTH, 1);
-
-        int barX = 10, barY = GameFrame.HEIGHT-36, barW = 180, barH = 16;
-
-        // HP bar
-        g.setColor(new Color(60, 0, 0));
-        g.fillRoundRect(barX, barY, barW, barH, 6, 6);
-        float hpR = (float)player.hp / player.maxHp;
-        Color hpC = hpR > 0.6f ? new Color(60, 210, 80) : hpR > 0.3f ? new Color(220, 160, 0) : new Color(220, 40, 40);
-        if (hpR < 0.3f) { double p2 = 0.7 + 0.3 * Math.sin(animTick*0.2); hpC = new Color((int)(210*p2), 40, 40); }
-        g.setColor(hpC);
-        g.fillRoundRect(barX, barY, (int)(barW*hpR), barH, 6, 6);
-        g.setColor(new Color(255, 255, 255, 35));
-        g.fillRoundRect(barX, barY, (int)(barW*hpR), barH/2, 6, 6);
-        g.setFont(FONT_MONO_BOLD_11);
-        g.setColor(new Color(240, 240, 240, 200));
-        g.drawString("HP " + player.hp + "/" + player.maxHp, barX+4, barY+12);
-        g.setColor(new Color(120, 120, 120, 80));
-        g.setStroke(new BasicStroke(1));
-        g.drawRoundRect(barX, barY, barW, barH, 6, 6);
-
-        // XP bar
-        int xpX = barX, xpY = barY+20, xpW = barW, xpH = 8;
-        g.setColor(new Color(0, 0, 60));
-        g.fillRoundRect(xpX, xpY, xpW, xpH, 4, 4);
-        float xpR = (float)xp / xpToNext;
-        g.setColor(new Color(60, 100, 255));
-        g.fillRoundRect(xpX, xpY, (int)(xpW*xpR), xpH, 4, 4);
-        g.setColor(new Color(100, 140, 255, 60));
-        g.fillRoundRect(xpX, xpY, (int)(xpW*xpR), xpH/2, 4, 4);
-
-        // Level badge
-        g.setFont(FONT_MONO_BOLD_12);
-        g.setColor(new Color(0, 0, 0, 120));
-        g.fillRoundRect(barX+barW+6, barY, 40, 36, 6, 6);
-        g.setColor(new Color(80, 120, 255));
-        g.drawString("Lv", barX+barW+10, barY+13);
-        g.setFont(FONT_MONO_BOLD_14);
-        g.setColor(new Color(140, 170, 255));
-        g.drawString("" + level, barX+barW+13, barY+30);
-
-        // Armor
-        if (player.armor > 0) {
-            g.setFont(FONT_MONO_BOLD_12);
-            g.setColor(new Color(100, 180, 255));
-            g.drawString("[" + player.armor + "]", barX+barW+58, barY+13);
-        }
-
-        // Dash bar
-        g.setFont(FONT_MONO_BOLD_12);
-        float dashReady = 1f - (float)player.dashCooldown / Player.DASH_COOLDOWN_MAX;
-        if (dashReady < 1f) {
-            g.setColor(new Color(100, 180, 255));
-            g.drawString("DASH", barX+barW+100, barY+13);
-            g.setColor(new Color(40, 80, 120));
-            g.fillRect(barX+barW+100, barY+16, 40, 4);
-            g.setColor(new Color(0, 200, 255));
-            g.fillRect(barX+barW+100, barY+16, (int)(40*dashReady), 4);
-        } else {
-            g.setColor(new Color(0, 255, 150));
-            g.drawString("DASH", barX+barW+100, barY+13);
-            g.fillRect(barX+barW+100, barY+16, 40, 4);
-        }
-
-        // Super bar
-        float superReady = 1f - (float)player.superCooldown / Player.SUPER_COOLDOWN_MAX;
-        String superName = switch(player.character) {
-            case SOLDIER -> "RAPID"; case MAGE -> "POWER"; case TANK -> "SHIELD"; case ROGUE -> "SPEED";
-        };
-        if (superReady < 1f || player.superActive) {
-            Color superColor = player.superActive ? Color.YELLOW : new Color(150, 100, 200);
-            g.setColor(superColor); g.drawString(superName, barX+barW+100, barY+25);
-            g.setColor(new Color(60, 40, 80));
-            g.fillRect(barX+barW+100, barY+28, 40, 4);
-            g.setColor(superColor);
-            g.fillRect(barX+barW+100, barY+28, (int)(40*superReady), 4);
-        } else {
-            g.setColor(new Color(200, 150, 255));
-            g.drawString(superName, barX+barW+100, barY+25);
-            g.fillRect(barX+barW+100, barY+28, 40, 4);
-        }
-
-        // Enemy count
-        String en = enemies.size() + " on field";
-        fm = g.getFontMetrics();
-        g.setColor(new Color(200, 100, 100));
-        g.drawString(en, GameFrame.WIDTH - fm.stringWidth(en) - 12, GameFrame.HEIGHT-14);
-
-        // Wave progress bar
-        int wpW = (int)(GameFrame.WIDTH * waveManager.getWaveProgress());
-        g.setColor(new Color(60, 200, 80, 60));
-        g.fillRect(0, GameFrame.HEIGHT-3, wpW, 3);
     }
 
     // ── UPGRADE Screen ────────────────────────────────────────────
@@ -1608,7 +1926,6 @@ import java.util.List;
         g.setColor(new Color(210, 35, 35));
         g.drawString(got, gx, 184);
 
-        // Stats panel
         g.setColor(new Color(0, 0, 0, 170));
         g.fillRoundRect(200, 205, 400, 148, 14, 14);
         g.setColor(new Color(100, 20, 20, 120));
@@ -1640,6 +1957,14 @@ import java.util.List;
         String hs = "Best: " + highScore + " kills";
         fm = g.getFontMetrics();
         g.drawString(hs, (GameFrame.WIDTH - fm.stringWidth(hs)) / 2, sy+6);
+
+        if (saveData != null) {
+            g.setFont(FONT_MONO_PLAIN_12);
+            g.setColor(new Color(120, 120, 120, 180));
+            String career = "Career kills: " + saveData.totalKills + " | Runs: " + saveData.gamesPlayed;
+            fm = g.getFontMetrics();
+            g.drawString(career, (GameFrame.WIDTH - fm.stringWidth(career)) / 2, sy+24);
+        }
 
         g.setColor(new Color(100, 20, 20, 80));
         g.fillRect(100, 370, 600, 1);
@@ -1794,12 +2119,11 @@ import java.util.List;
     @Override public void mouseEntered(MouseEvent e) {}
     @Override public void mouseExited(MouseEvent e)  {}
 
-   @Override
+    @Override
     public void mouseMoved(MouseEvent e) {
         Point gamePoint = screenToGamePoint(e.getX(), e.getY());
         mouseX = gamePoint.x;
         mouseY = gamePoint.y;
-
         updateCardHover(mouseX, mouseY);
         updateCharCardHover(mouseX, mouseY);
         updateShopHover(mouseX, mouseY);
@@ -1810,7 +2134,6 @@ import java.util.List;
         Point gamePoint = screenToGamePoint(e.getX(), e.getY());
         mouseX = gamePoint.x;
         mouseY = gamePoint.y;
-
         updateCardHover(mouseX, mouseY);
         updateCharCardHover(mouseX, mouseY);
         updateShopHover(mouseX, mouseY);
