@@ -15,10 +15,14 @@ public class Enemy {
     public boolean elite;
     public int coinDrop;
 
-    // Skin and clothing colors (slightly random per zombie)
     private Color skinColor;
     private Color shirtColor;
-    private int woundType; // 0, 1, or 2 — which blood detail to show
+    private int woundType;
+
+    // ── Visual Effects ──
+    public float spawnScale = 0f;
+    public int hitFlash = 0;
+    public float knockbackX = 0, knockbackY = 0;
 
     private static final Random rand = new Random();
 
@@ -33,18 +37,25 @@ public class Enemy {
         this.woundType = rand.nextInt(3);
 
         if (elite) {
-            // Elite zombie — sickly purple-grey skin, darker clothes
             skinColor  = new Color(130 + rand.nextInt(30), 80 + rand.nextInt(20), 160 + rand.nextInt(30));
             shirtColor = new Color(60, 20, 80);
         } else {
-            // Normal zombie — rotting green-grey skin
             skinColor  = new Color(80 + rand.nextInt(40), 110 + rand.nextInt(35), 50 + rand.nextInt(30));
             shirtColor = new Color(55 + rand.nextInt(30), 45 + rand.nextInt(20), 35 + rand.nextInt(20));
         }
     }
 
-    /** Move straight toward the player every tick */
     public void update(float targetX, float targetY, float moveSpeed) {
+        // Spawn animation
+        if (spawnScale < 1f) spawnScale += 0.06f;
+
+        // Knockback recovery
+        if (hitFlash > 0) hitFlash--;
+        x += knockbackX;
+        y += knockbackY;
+        knockbackX *= 0.85f;
+        knockbackY *= 0.85f;
+
         float dx   = targetX - getCenterX();
         float dy   = targetY - getCenterY();
         float dist = (float) Math.sqrt(dx * dx + dy * dy);
@@ -63,16 +74,26 @@ public class Enemy {
         return new Rectangle((int) x + 2, (int) y + 2, s - 4, s - 4);
     }
 
-    /** Draw zombie with glow effect. Elite = bigger + purple glow. Normal = green glow. */
     public void draw(Graphics2D g) {
+        if (spawnScale <= 0.01f) return;
+
+        // Apply spawn-scale transform
+        Graphics2D eg = (Graphics2D) g.create();
+        float cx = x + getSize() / 2f;
+        float cy = y + getSize() / 2f;
+        eg.translate(cx, cy);
+        eg.scale(spawnScale, spawnScale);
+        eg.translate(-cx, -cy);
+        g = eg; // redirect all drawing
+
         int s  = getSize();
         int ex = (int) x;
         int ey = (int) y;
 
-        // ── Outer glow ring (gives the "Endless Waves" neon feel) ──
+        // ── Outer glow ring ──
         Color glowColor = elite
-            ? new Color(180, 60, 255, 60)   // purple glow for elite
-            : new Color(60, 200, 60, 50);    // green glow for normal
+            ? new Color(180, 60, 255, 60)
+            : new Color(60, 200, 60, 50);
         g.setColor(glowColor);
         g.fillOval(ex - 5, ey - 5, s + 10, s + 10);
 
@@ -80,26 +101,24 @@ public class Enemy {
         g.setColor(new Color(0, 0, 0, 80));
         g.fillOval(ex + 2, ey + s - 4, s - 4, 6);
 
-        // ── Legs (torn dark pants) ──
+        // ── Legs ──
         Color pantsColor = new Color(
             Math.max(0, shirtColor.getRed() - 15),
             Math.max(0, shirtColor.getGreen() - 10),
             Math.max(0, shirtColor.getBlue() - 10)
         );
         g.setColor(pantsColor);
-        g.fillRect(ex + s/2 - 8, ey + s - 6,  5, 8);  // left leg
-        g.fillRect(ex + s/2 + 3, ey + s - 6,  5, 8);  // right leg
+        g.fillRect(ex + s/2 - 8, ey + s - 6,  5, 8);
+        g.fillRect(ex + s/2 + 3, ey + s - 6,  5, 8);
 
-        // Feet/stumps
         g.setColor(new Color(25, 20, 15));
         g.fillRect(ex + s/2 - 9, ey + s + 1, 6, 3);
         g.fillRect(ex + s/2 + 2, ey + s + 1, 6, 3);
 
-        // ── Body (tattered shirt) ──
+        // ── Body ──
         g.setColor(shirtColor);
         g.fillRect(ex + 3, ey + s/2, s - 6, s/2 - 2);
 
-        // Torn rip marks on shirt
         g.setColor(new Color(
             Math.max(0, shirtColor.getRed() - 30),
             Math.max(0, shirtColor.getGreen() - 20),
@@ -108,17 +127,15 @@ public class Enemy {
         g.fillRect(ex + 5,      ey + s/2 + 2, 3, 4);
         g.fillRect(ex + s - 9,  ey + s/2 + 5, 3, 5);
 
-        // Skin peeking through tears
         g.setColor(skinColor);
         g.fillRect(ex + 5,      ey + s/2 + 2, 2, 3);
         g.fillRect(ex + s - 9,  ey + s/2 + 5, 2, 4);
 
-        // ── Arms outstretched (zombie reaching pose) ──
+        // ── Arms ──
         g.setColor(skinColor);
-        g.fillRect(ex - 4, ey + s/2 + 1, 6, 4);     // left arm
-        g.fillRect(ex + s - 2, ey + s/2 + 1, 6, 4); // right arm
+        g.fillRect(ex - 4, ey + s/2 + 1, 6, 4);
+        g.fillRect(ex + s - 2, ey + s/2 + 1, 6, 4);
 
-        // Claw fingers — left hand
         Color clawColor = new Color(
             Math.max(0, skinColor.getRed() - 15),
             Math.min(255, skinColor.getGreen() + 10),
@@ -128,8 +145,6 @@ public class Enemy {
         g.fillRect(ex - 7, ey + s/2,     2, 2);
         g.fillRect(ex - 7, ey + s/2 + 2, 2, 2);
         g.fillRect(ex - 7, ey + s/2 + 4, 2, 2);
-
-        // Claw fingers — right hand
         g.fillRect(ex + s + 5, ey + s/2,     2, 2);
         g.fillRect(ex + s + 5, ey + s/2 + 2, 2, 2);
         g.fillRect(ex + s + 5, ey + s/2 + 4, 2, 2);
@@ -138,54 +153,51 @@ public class Enemy {
         g.setColor(skinColor);
         g.fillRect(ex + s/2 - 4, ey + s/2 - 3, 8, 5);
 
-        // ── Head (zombie skull shape) ──
+        // ── Head ──
         g.setColor(skinColor);
         g.fillOval(ex + 3, ey, s - 6, s/2 + 4);
 
-        // ── Messy matted hair ──
+        // ── Hair ──
         g.setColor(new Color(25, 18, 8));
-        g.fillOval(ex + 3,       ey,      s - 6, s/4 + 1); // main hair
-        g.fillOval(ex + 2,       ey + 1,  5, 4);            // left clump
-        g.fillOval(ex + s - 8,   ey + 1,  5, 4);            // right clump
-        g.fillOval(ex + s/2 - 4, ey - 2,  7, 4);            // top tuft
+        g.fillOval(ex + 3,       ey,      s - 6, s/4 + 1);
+        g.fillOval(ex + 2,       ey + 1,  5, 4);
+        g.fillOval(ex + s - 8,   ey + 1,  5, 4);
+        g.fillOval(ex + s/2 - 4, ey - 2,  7, 4);
 
-        // Forehead skin
         g.setColor(skinColor);
         g.fillRect(ex + 5, ey + s/4 - 1, s - 10, 5);
 
-        // ── Glowing zombie eyes ──
+        // ── Eyes ──
         Color eyeGlow = elite
-            ? new Color(210, 100, 255, 220)  // purple eyes for elite
-            : new Color(150, 255, 50, 220);   // green eyes for normal
+            ? new Color(210, 100, 255, 220)
+            : new Color(150, 255, 50, 220);
         g.setColor(eyeGlow);
         g.fillOval(ex + 5,      ey + s/4,     6, 5);
         g.fillOval(ex + s - 12, ey + s/4,     6, 5);
 
-        // Dark slit pupils
         g.setColor(new Color(5, 10, 0));
         g.fillOval(ex + 7,      ey + s/4 + 1, 2, 3);
         g.fillOval(ex + s - 10, ey + s/4 + 1, 2, 3);
 
-        // ── Rotting open mouth with teeth ──
+        // ── Mouth ──
         g.setColor(new Color(15, 5, 5));
         g.fillRect(ex + s/2 - 6, ey + s/2 - 2, 12, 3);
-
         g.setColor(new Color(210, 200, 170));
-        g.fillRect(ex + s/2 - 5, ey + s/2 - 2, 2, 2); // tooth 1
-        g.fillRect(ex + s/2 - 1, ey + s/2 - 2, 2, 2); // tooth 2
-        g.fillRect(ex + s/2 + 3, ey + s/2 - 2, 2, 2); // tooth 3
+        g.fillRect(ex + s/2 - 5, ey + s/2 - 2, 2, 2);
+        g.fillRect(ex + s/2 - 1, ey + s/2 - 2, 2, 2);
+        g.fillRect(ex + s/2 + 3, ey + s/2 - 2, 2, 2);
 
-        // ── Blood / wound (random per zombie) ──
+        // ── Blood / wound ──
         g.setColor(new Color(150, 8, 8, 190));
         if (woundType == 0) {
-            g.fillOval(ex + s/2 - 2, ey + s/2 - 4, 5, 3); // neck bite
+            g.fillOval(ex + s/2 - 2, ey + s/2 - 4, 5, 3);
         } else if (woundType == 1) {
-            g.fillRect(ex + s/2 - 4, ey + s/4 - 1, 7, 2);  // forehead gash
+            g.fillRect(ex + s/2 - 4, ey + s/4 - 1, 7, 2);
         } else {
-            g.fillOval(ex + s/2 - 3, ey + s/2 + 4, 6, 5);  // chest wound
+            g.fillOval(ex + s/2 - 3, ey + s/2 + 4, 6, 5);
         }
 
-        // ── Elite glow ring (extra border for elite zombies) ──
+        // ── Elite glow ring ──
         if (elite) {
             g.setColor(new Color(180, 60, 255, 100));
             g.setStroke(new BasicStroke(2.5f));
@@ -193,14 +205,21 @@ public class Enemy {
             g.setStroke(new BasicStroke(1f));
         }
 
-        // ── HP bar (only shows when damaged) ──
+        // ── HP bar ──
         if (hp < maxHp) {
             g.setColor(new Color(20, 20, 20, 180));
             g.fillRect(ex, ey - 8, s, 4);
-
             float ratio = (float) hp / maxHp;
             g.setColor(elite ? new Color(160, 50, 220) : new Color(80, 220, 80));
             g.fillRect(ex, ey - 8, (int)(s * ratio), 4);
         }
+
+        // ── Hit flash overlay ──
+        if (hitFlash > 0) {
+            g.setColor(new Color(255, 255, 255, hitFlash * 55));
+            g.fillOval(ex - 4, ey - 4, s + 8, s + 8);
+        }
+
+        eg.dispose();
     }
 }
