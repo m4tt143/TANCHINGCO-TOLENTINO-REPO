@@ -89,6 +89,14 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private int meteoriteSpawnCooldown = 0;
     private int meteoriteCount = 0;
     
+    // ── Advanced Effects ──
+    private int bloomAlpha = 0; // Screen bloom on big moments
+    private int comboMilestoneFlash = 0; // 25, 50, 100 kill combo celebrations
+    private int perfectWaveBonus = 0; // Bonus for surviving wave without taking damage
+    private int bulletTrailAlpha = 0; // Visual trail effect strength
+    private int bossRageMode = 0; // Boss special attack mode
+    private int difficultyModifier = 1; // Scales with waves (affects enemy stats)
+    
     // ── Character Unique Mechanics ──
     private int characterSpecialCharge = 0;
     private int characterSpecialCooldown = 0;
@@ -407,6 +415,22 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                         totalKills++; killFlashTicks = 10;
                         killStreak++; killStreakTimer = 180; comboCount++;
                         if (killStreak >= 5) comboDisplayTicks = 60;
+                        
+                        // ── Combo Milestone Celebrations ──
+                        if (totalKills % 50 == 0) {
+                            bloomAlpha = 180; // Screen bloom
+                            screenShakeTicks = 30;
+                            screenShakeX = 18;
+                            comboMilestoneFlash = 120;
+                            coins += 100; // Bonus coins
+                        } else if (totalKills % 25 == 0) {
+                            bloomAlpha = 100;
+                            screenShakeTicks = 20;
+                            screenShakeX = 12;
+                            comboMilestoneFlash = 80;
+                            coins += 50;
+                        }
+                        
                         int earnedCoins = (int)(e.coinDrop * player.coinMultiplier);
                         if (killStreakLevel > 0) earnedCoins += killStreakLevel;
                         coins += earnedCoins;
