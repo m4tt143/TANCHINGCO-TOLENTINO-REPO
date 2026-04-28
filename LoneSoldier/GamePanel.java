@@ -1692,7 +1692,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         hoveredCharCard = -1;
         Player.CharacterType[] chars = Player.CharacterType.values();
         for (int i = 0; i < chars.length; i++) {
-            int cx = startX + i*(cardW+20);
+            int cx = startX + i*(cardW+20);S
             if (mx >= cx && mx <= cx+cardW && my >= cardY && my <= cardY+cardH) { hoveredCharCard = i; break; }
         }
     }
@@ -1704,6 +1704,8 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         for (int i = 0; i < 3; i++) {
             int cx = sx + i*(cw+20);
             if (mx >= cx && mx <= cx+cw && my >= sy-6 && my <= sy+ch) { hoveredCard = i; break; }
+
+            // Updated by Mikael - code cleanup
         }
     }
 }
