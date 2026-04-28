@@ -83,6 +83,7 @@ import java.util.List;
 
     private long  animTick    = 0;
     private int   hoveredCard = -1;
+    private int   hoveredShopItem = -1;
 
     private float screenShakeX = 0, screenShakeY = 0;
     private int   screenShakeTicks = 0;
@@ -509,20 +510,14 @@ import java.util.List;
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        g.setColor(Color.BLACK);
+        g.fillRect(0, 0, getWidth(), getHeight());
 
-        Graphics2D g2 = (Graphics2D) g;
-  
-        double scale = Math.min(
-        getWidth() / (double) BASE_WIDTH,
-        getHeight() / (double) BASE_HEIGHT
-        );
+        double scaleX = getWidth() / (double) BASE_WIDTH;
+        double scaleY = getHeight() / (double) BASE_HEIGHT;
 
-       // center the game
-       double xOffset = (getWidth() - BASE_WIDTH * scale) / 2;
-       double yOffset = (getHeight() - BASE_HEIGHT * scale) / 2;
-
-       g2.translate(xOffset, yOffset);
-       g2.scale(scale, scale);
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.scale(scaleX, scaleY);
 
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -554,18 +549,33 @@ import java.util.List;
             g2.setColor(new Color(0, 0, 0, fadeAlpha));
             g2.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
         }
+
+        g2.dispose();
     }
 
     // ── CHARACTER SELECT ──────────────────────────────────────────
 
     private void drawCharacterSelect(Graphics2D g) {
-        g.setColor(new Color(5, 8, 12));
+        java.awt.geom.Point2D center = new java.awt.geom.Point2D.Double(
+            GameFrame.WIDTH * 0.5 + Math.sin(animTick * 0.018) * 32,
+            GameFrame.HEIGHT * 0.3
+        );
+        float radius = GameFrame.WIDTH * 0.9f;
+        g.setPaint(new RadialGradientPaint(
+            center, radius,
+            new float[]{0f, 0.55f, 1f},
+            new Color[]{new Color(18, 54, 32), new Color(8, 14, 12), new Color(4, 8, 10)}
+        ));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
-        // Subtle grid
-        g.setColor(new Color(20, 50, 35, 50));
-        for (int x = 0; x < GameFrame.WIDTH; x += 50) g.drawLine(x, 0, x, GameFrame.HEIGHT);
-        for (int y = 0; y < GameFrame.HEIGHT; y += 50) g.drawLine(0, y, GameFrame.WIDTH, y);
+        g.setPaint(null);
+        g.setColor(new Color(255, 255, 255, 20));
+        for (int i = 0; i < 30; i++) {
+            int sx = (int)(Math.sin((animTick + i * 12) * 0.035) * 180 + GameFrame.WIDTH/2);
+            int sy = (int)(Math.cos((animTick + i * 8) * 0.028) * 90 + 180);
+            int size = 2 + (i % 3);
+            g.fillOval(sx, sy, size, size);
+        }
 
         g.setFont(FONT_MONO_BOLD_36);
         FontMetrics fm = g.getFontMetrics();
@@ -599,6 +609,10 @@ import java.util.List;
         boolean selected = (chr == selectedCharacter);
         int lift = hovered ? 5 : 0; y -= lift;
 
+        if (selected) {
+            g.setColor(new Color(255, 210, 100, 25));
+            g.fillRoundRect(x-10, y-10, w+20, h+20, 20, 20);
+        }
         if (hovered || selected) {
             Color glowC = selected ? new Color(255, 200, 0, 40) : new Color(60, 220, 80, 30);
             g.setColor(glowC);
@@ -700,7 +714,7 @@ import java.util.List;
             boolean bought = shopBought[i];
             int cost = Integer.parseInt(items[i][1].split(": ")[1]);
             boolean canAfford = shopCoins >= cost && !bought;
-            drawShopItem(g, ix, itemY, itemW, itemH, items[i][0], cost, items[i][2], canAfford, bought, i+1);
+            drawShopItem(g, ix, itemY, itemW, itemH, items[i][0], cost, items[i][2], canAfford, bought, i+1, hoveredShopItem == i);
         }
 
         g.setFont(FONT_MONO_PLAIN_13);
@@ -714,13 +728,17 @@ import java.util.List;
         g.drawString("[ PRESS ENTER ]", GameFrame.WIDTH/2 - 80, GameFrame.HEIGHT - 50);
     }
 
-    private void drawShopItem(Graphics2D g, int x, int y, int w, int h, String name, int cost, String desc, boolean affordable, boolean bought, int key) {
+    private void drawShopItem(Graphics2D g, int x, int y, int w, int h, String name, int cost, String desc, boolean affordable, boolean bought, int key, boolean hovered) {
+        if (hovered && !bought) {
+            g.setColor(new Color(120, 255, 160, 45));
+            g.fillRoundRect(x-5, y-5, w+10, h+10, 16, 16);
+        }
         g.setColor(bought ? new Color(30, 60, 30) : new Color(12, 28, 18));
         g.fillRoundRect(x, y, w, h, 12, 12);
 
         Color cardColor = bought ? new Color(80, 200, 80) : affordable ? new Color(40, 140, 60) : new Color(80, 80, 80);
-        g.setColor(cardColor);
-        g.setStroke(new BasicStroke(2));
+        g.setColor(hovered ? cardColor.brighter() : cardColor);
+        g.setStroke(new BasicStroke(hovered ? 2.5f : 2));
         g.drawRoundRect(x, y, w, h, 12, 12);
         g.setStroke(new BasicStroke(1));
 
@@ -883,8 +901,18 @@ import java.util.List;
     private void drawMenu(Graphics2D g) {
         int W = GameFrame.WIDTH, H = GameFrame.HEIGHT;
 
-        g.setColor(new Color(8, 12, 10));
+        java.awt.geom.Point2D center = new java.awt.geom.Point2D.Double(
+            W * 0.45 + Math.cos(animTick * 0.01) * 40,
+            H * 0.35 + Math.sin(animTick * 0.008) * 28
+        );
+        float radius = W * 0.9f;
+        g.setPaint(new RadialGradientPaint(
+            center, radius,
+            new float[]{0f, 0.55f, 1f},
+            new Color[]{new Color(10, 26, 18), new Color(6, 12, 10), new Color(4, 8, 10)}
+        ));
         g.fillRect(0, 0, W, H);
+        g.setPaint(null);
 
         g.setColor(new Color(20, 35, 25, 80));
         for (int x = 0; x < W; x += 40) g.drawLine(x, 0, x, H);
@@ -1673,6 +1701,10 @@ import java.util.List;
 
     @Override
     public void mouseClicked(MouseEvent e) {
+        Point gamePoint = screenToGamePoint(e.getX(), e.getY());
+        int mx = gamePoint.x;
+        int my = gamePoint.y;
+
         if (state == GameState.UPGRADE && e.getButton() == MouseEvent.BUTTON1 && hoveredCard >= 0)
             applyUpgrade(hoveredCard);
 
@@ -1681,7 +1713,7 @@ import java.util.List;
             int cardW = 200, cardH = 280, totalW = cardW*4+60, startX = (GameFrame.WIDTH-totalW)/2, cardY = 100;
             for (int i = 0; i < chars.length; i++) {
                 int cx = startX + i*(cardW+20);
-                if (e.getX() >= cx && e.getX() <= cx+cardW && e.getY() >= cardY && e.getY() <= cardY+cardH) {
+                if (mx >= cx && mx <= cx+cardW && my >= cardY && my <= cardY+cardH) {
                     selectedCharacter = chars[i]; state = GameState.SHOP; break;
                 }
             }
@@ -1691,7 +1723,7 @@ import java.util.List;
             int itemW = 200, itemH = 100, totalW = itemW*4+60, startX = (GameFrame.WIDTH-totalW)/2, itemY = 150;
             for (int i = 0; i < 4; i++) {
                 int ix = startX + i*(itemW+20);
-                if (e.getX() >= ix && e.getX() <= ix+itemW && e.getY() >= itemY && e.getY() <= itemY+itemH) {
+                if (mx >= ix && mx <= ix+itemW && my >= itemY && my <= itemY+itemH) {
                     tryBuyShopItem(i); break;
                 }
             }
@@ -1703,27 +1735,33 @@ import java.util.List;
 
    @Override
     public void mouseMoved(MouseEvent e) {
-    double scaleX = getWidth() / (double) BASE_WIDTH;
-    double scaleY = getHeight() / (double) BASE_HEIGHT;
+        Point gamePoint = screenToGamePoint(e.getX(), e.getY());
+        mouseX = gamePoint.x;
+        mouseY = gamePoint.y;
 
-    mouseX = (int)(e.getX() / scaleX);
-    mouseY = (int)(e.getY() / scaleY);
-
-    updateCardHover(mouseX, mouseY);
-    updateCharCardHover(mouseX, mouseY);
-}
+        updateCardHover(mouseX, mouseY);
+        updateCharCardHover(mouseX, mouseY);
+        updateShopHover(mouseX, mouseY);
+    }
 
     @Override
     public void mouseDragged(MouseEvent e) {
-    double scaleX = getWidth() / (double) BASE_WIDTH;
-    double scaleY = getHeight() / (double) BASE_HEIGHT;
+        Point gamePoint = screenToGamePoint(e.getX(), e.getY());
+        mouseX = gamePoint.x;
+        mouseY = gamePoint.y;
 
-    mouseX = (int)(e.getX() / scaleX);
-    mouseY = (int)(e.getY() / scaleY);
+        updateCardHover(mouseX, mouseY);
+        updateCharCardHover(mouseX, mouseY);
+        updateShopHover(mouseX, mouseY);
+    }
 
-    updateCardHover(mouseX, mouseY);
-    updateCharCardHover(mouseX, mouseY);
-}
+    private Point screenToGamePoint(int screenX, int screenY) {
+        double scaleX = getWidth() / (double) BASE_WIDTH;
+        double scaleY = getHeight() / (double) BASE_HEIGHT;
+        int gx = (int) (screenX / scaleX);
+        int gy = (int) (screenY / scaleY);
+        return new Point(gx, gy);
+    }
 
     private void updateCharCardHover(int mx, int my) {
         if (state != GameState.CHARACTER_SELECT) { hoveredCharCard = -1; return; }
@@ -1736,6 +1774,16 @@ import java.util.List;
         }
     }
 
+    private void updateShopHover(int mx, int my) {
+        if (state != GameState.SHOP) { hoveredShopItem = -1; return; }
+        int itemW = 200, itemH = 100, totalW = itemW*4+60, startX = (GameFrame.WIDTH-totalW)/2, itemY = 150;
+        hoveredShopItem = -1;
+        for (int i = 0; i < 4; i++) {
+            int ix = startX + i*(itemW+20);
+            if (mx >= ix && mx <= ix+itemW && my >= itemY && my <= itemY+itemH) { hoveredShopItem = i; break; }
+        }
+    }
+
     private void updateCardHover(int mx, int my) {
         if (state != GameState.UPGRADE) { hoveredCard = -1; return; }
         int cw = 200, ch = 160, sx = (GameFrame.WIDTH-(cw*3+40))/2, sy = 148;
@@ -1743,9 +1791,6 @@ import java.util.List;
         for (int i = 0; i < 3; i++) {
             int cx = sx + i*(cw+20);
             if (mx >= cx && mx <= cx+cw && my >= sy-6 && my <= sy+ch) { hoveredCard = i; break; }
-
-            
-            
         }
     }
 }
