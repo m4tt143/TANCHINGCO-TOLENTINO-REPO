@@ -20,7 +20,11 @@ import java.util.List;
  *  - Regen uses large int instead of Integer.MAX_VALUE
  *  - Minor visual polish throughout
  */
-public class GamePanel extends JPanel implements KeyListener, MouseListener, MouseMotionListener {
+
+   public class GamePanel extends JPanel implements KeyListener, MouseListener, MouseMotionListener {
+
+    private static final int BASE_WIDTH = 800;
+   private static final int BASE_HEIGHT = 600;
 
     // ── Cached Fonts ──────────────────────────────────────────────
     private static final Font FONT_MONO_BOLD_8  = new Font("Monospaced", Font.BOLD,  8);
@@ -119,7 +123,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private static final int FPS = 60;
 
     public GamePanel() {
-        setPreferredSize(new Dimension(GameFrame.WIDTH, GameFrame.HEIGHT));
+        setPreferredSize(new Dimension(800, 600));
         setBackground(Color.BLACK);
         setFocusable(true);
         addKeyListener(this);
@@ -505,7 +509,21 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+
         Graphics2D g2 = (Graphics2D) g;
+  
+        double scale = Math.min(
+        getWidth() / (double) BASE_WIDTH,
+        getHeight() / (double) BASE_HEIGHT
+        );
+
+       // center the game
+       double xOffset = (getWidth() - BASE_WIDTH * scale) / 2;
+       double yOffset = (getHeight() - BASE_HEIGHT * scale) / 2;
+
+       g2.translate(xOffset, yOffset);
+       g2.scale(scale, scale);
+
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_RENDERING,         RenderingHints.VALUE_RENDER_SPEED);
@@ -1683,8 +1701,29 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     @Override public void mouseEntered(MouseEvent e) {}
     @Override public void mouseExited(MouseEvent e)  {}
 
-    @Override public void mouseMoved(MouseEvent e)   { mouseX = e.getX(); mouseY = e.getY(); updateCardHover(e.getX(), e.getY()); updateCharCardHover(e.getX(), e.getY()); }
-    @Override public void mouseDragged(MouseEvent e) { mouseX = e.getX(); mouseY = e.getY(); updateCardHover(e.getX(), e.getY()); updateCharCardHover(e.getX(), e.getY()); }
+   @Override
+    public void mouseMoved(MouseEvent e) {
+    double scaleX = getWidth() / (double) BASE_WIDTH;
+    double scaleY = getHeight() / (double) BASE_HEIGHT;
+
+    mouseX = (int)(e.getX() / scaleX);
+    mouseY = (int)(e.getY() / scaleY);
+
+    updateCardHover(mouseX, mouseY);
+    updateCharCardHover(mouseX, mouseY);
+}
+
+    @Override
+    public void mouseDragged(MouseEvent e) {
+    double scaleX = getWidth() / (double) BASE_WIDTH;
+    double scaleY = getHeight() / (double) BASE_HEIGHT;
+
+    mouseX = (int)(e.getX() / scaleX);
+    mouseY = (int)(e.getY() / scaleY);
+
+    updateCardHover(mouseX, mouseY);
+    updateCharCardHover(mouseX, mouseY);
+}
 
     private void updateCharCardHover(int mx, int my) {
         if (state != GameState.CHARACTER_SELECT) { hoveredCharCard = -1; return; }
@@ -1692,7 +1731,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         hoveredCharCard = -1;
         Player.CharacterType[] chars = Player.CharacterType.values();
         for (int i = 0; i < chars.length; i++) {
-            int cx = startX + i*(cardW+20);S
+            int cx = startX + i*(cardW+20);
             if (mx >= cx && mx <= cx+cardW && my >= cardY && my <= cardY+cardH) { hoveredCharCard = i; break; }
         }
     }
@@ -1705,7 +1744,8 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             int cx = sx + i*(cw+20);
             if (mx >= cx && mx <= cx+cw && my >= sy-6 && my <= sy+ch) { hoveredCard = i; break; }
 
-            // Updated by Mikael - code cleanup
+            
+            
         }
     }
 }
