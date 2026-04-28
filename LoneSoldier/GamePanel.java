@@ -84,6 +84,10 @@ import java.util.List;
     private long  animTick    = 0;
     private int   hoveredCard = -1;
     private int   hoveredShopItem = -1;
+    private int   killStreak = 0;
+    private int   killStreakTimer = 0;
+    private int   killStreakLevel = 0;
+    private int   hitMarkerTicks = 0;
 
     private float screenShakeX = 0, screenShakeY = 0;
     private int   screenShakeTicks = 0;
@@ -269,6 +273,7 @@ import java.util.List;
         int w = waveManager.getCurrentWave();
         if (w != lastWaveShown) { lastWaveShown = w; waveFlashTicks = 150; SoundManager.waveStart(); }
         if (waveFlashTicks > 0) waveFlashTicks--;
+        if (killStreakTimer > 0) killStreakTimer--; else killStreak = 0;
 
         waveManager.update(enemies);
 
@@ -475,6 +480,7 @@ import java.util.List;
         pool.add("SLOW|Enemies 20% slower|--");
         pool.add("CRIT|20% crit +2 dmg|^^");
         pool.add("COINS|+50% gold earned|$");
+        pool.add("BLOODLUST|Kill streaks grant extra coins|$$");
         pool.add("REGEN|Heal 1 HP each 5s|+-");
         pool.add("WIDE|Bullet spread wider|><");
         Collections.shuffle(pool);
@@ -495,6 +501,7 @@ import java.util.List;
             case "SLOW"  -> player.enemySlowPercent += 0.15f;
             case "CRIT"  -> player.critChance += 0.15f;
             case "COINS" -> player.coinMultiplier += 0.3f;
+            case "BLOODLUST" -> killStreakLevel += 1;
             case "REGEN" -> player.regenTicksLeft = 999_999_999; // FIX: was Integer.MAX_VALUE
             case "WIDE"  -> player.bulletSpreadAngle += 0.15f;
         }
@@ -642,6 +649,11 @@ import java.util.List;
         String name = chr.toString();
         g.drawString(name, x + (w - fm.stringWidth(name)) / 2, y + 40);
 
+        if (selected) {
+            g.setColor(new Color(255, 240, 180, 20));
+            g.fillOval(x + w/2 - 70, y + 24, 140, 18);
+        }
+
         if (characterImages.containsKey(chr)) {
             BufferedImage img = characterImages.get(chr);
             int imgW = 120, imgH = 130;
@@ -649,6 +661,10 @@ import java.util.List;
             int imgY = y + 50;
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             g.drawImage(img, imgX, imgY, imgW, imgH, null);
+            if (hovered) {
+                g.setColor(new Color(255, 255, 255, 20));
+                g.fillOval(imgX+20, imgY+20, 40, 20);
+            }
         }
 
         String[] stats = switch(chr) {
@@ -920,6 +936,13 @@ import java.util.List;
         g.setColor(new Color(15, 30, 20, 40));
         for (int i = -H; i < W+H; i += 60) g.drawLine(i, 0, i+H, H);
 
+        for (int i = 0; i < 6; i++) {
+            int x = W/2 + (int)(Math.cos(animTick * 0.02 + i) * 260);
+            int y = H/2 + (int)(Math.sin(animTick * 0.023 + i*1.7) * 120);
+            g.setColor(new Color(80, 180, 120, 20));
+            g.fillOval(x-70, y-70, 140, 140);
+        }
+
         long t = System.currentTimeMillis();
         for (int i = 0; i < 20; i++) {
             double px = ((t * (0.008 + i * 0.002) + i * 173) % W);
@@ -928,6 +951,15 @@ import java.util.List;
             g.setColor(new Color(60, 200, 90, alpha));
             g.fillOval((int)px, (int)py, 2 + (i%3), 2 + (i%3));
         }
+
+        float promptPulse = (float)(Math.sin(animTick * 0.08) * 0.5 + 0.5);
+        String prompt = "PRESS ENTER";
+        g.setFont(FONT_MONO_BOLD_16);
+        FontMetrics pfm = g.getFontMetrics();
+        g.setColor(new Color(120, 255, 140, (int)(110 + promptPulse * 80)));
+        g.drawString(prompt, W / 2 - pfm.stringWidth(prompt) / 2, H - 82);
+        g.setColor(new Color(80, 120, 70, (int)(90 + promptPulse * 60)));
+        g.drawString(prompt, W / 2 - pfm.stringWidth(prompt) / 2, H - 84);
 
         for (int r = 120; r > 0; r -= 20) {
             g.setColor(new Color(30, 120, 50, (int)(8 + 4 * Math.sin(animTick * 0.03))));
@@ -1124,8 +1156,21 @@ import java.util.List;
 
         drawDangerArrows(screenG, cameraX, cameraY);
         drawCrosshair(screenG, mouseX, mouseY);
+        drawHitMarker(screenG);
         drawHUD(screenG);
         drawAbilityIcons(screenG);
+    }
+
+    private void drawHitMarker(Graphics2D g) {
+        if (hitMarkerTicks <= 0) return;
+        int alpha = Math.min(200, hitMarkerTicks * 20);
+        int size = 24 + (12 - hitMarkerTicks);
+        g.setStroke(new BasicStroke(2));
+        g.setColor(new Color(255, 215, 80, alpha));
+        g.drawOval(mouseX - size/2, mouseY - size/2, size, size);
+        g.drawLine(mouseX - size/2, mouseY, mouseX + size/2, mouseY);
+        g.drawLine(mouseX, mouseY - size/2, mouseX, mouseY + size/2);
+        g.setStroke(new BasicStroke(1));
     }
 
     private void drawLighting(Graphics2D g, float camX, float camY) {
@@ -1273,6 +1318,15 @@ import java.util.List;
         g.setColor(new Color(100, 220, 130));
         g.drawString(timer, GameFrame.WIDTH/2 - fm.stringWidth(timer)/2, 33);
 
+        if (killStreak > 1) {
+            g.setFont(FONT_MONO_BOLD_13);
+            String streak = "COMBO x" + killStreak;
+            g.setColor(new Color(255, 220, 100, 210));
+            g.drawString(streak, GameFrame.WIDTH/2 - g.getFontMetrics().stringWidth(streak)/2, 52);
+            g.setColor(new Color(255, 255, 255, 60));
+            g.drawString("Keep the streak alive!", GameFrame.WIDTH/2 - g.getFontMetrics().stringWidth("Keep the streak alive!")/2, 66);
+        }
+
         // Wave
         g.setFont(FONT_MONO_BOLD_13);
         g.setColor(new Color(0, 0, 0, 110));
@@ -1403,7 +1457,7 @@ import java.util.List;
 
     private void drawUpgrade(Graphics2D g) {
         drawBackground(g);
-        g.setColor(new Color(0, 0, 0, 210));
+        g.setColor(new Color(0, 0, 0, 200));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
         double pulse = Math.sin(animTick * 0.07) * 0.5 + 0.5;
@@ -1415,6 +1469,13 @@ import java.util.List;
         g.drawString(hdr, hx-2, 96); g.drawString(hdr, hx+2, 96);
         g.setColor(new Color(80, 255, 120));
         g.drawString(hdr, hx, 94);
+
+        g.setColor(new Color(100, 255, 160, 30));
+        for (int i = 0; i < 4; i++) {
+            int ox = GameFrame.WIDTH/2 + (int)(Math.cos(animTick*0.08 + i*1.7) * 260);
+            int oy = 120 + (int)(Math.sin(animTick*0.06 + i*2.1) * 40);
+            g.fillOval(ox-48, oy-18, 96, 36);
+        }
 
         g.setFont(FONT_MONO_PLAIN_15);
         g.setColor(new Color(120, 180, 130));
