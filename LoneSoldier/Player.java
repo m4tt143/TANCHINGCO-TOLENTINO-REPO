@@ -30,6 +30,12 @@ public class Player {
 
     public int regenTicksLeft = 0;
     public float bulletSpreadAngle = 0f;
+    
+    // ── Character-Specific Passives ──
+    public int soldierExplosiveCharge = 0;  // Soldier: Every 5th shot explodes
+    public int mageChainLightning = 0;      // Mage: Kill hits chain to nearby enemies
+    public int tankShieldRegen = 0;         // Tank: Regen armor over time
+    public int rogueEvasionChance = 0;      // Rogue: Chance to dodge attacks
 
     // Temporary buffs
     public int speedBoostTimer = 0;
@@ -48,10 +54,22 @@ public class Player {
 
     public Player(float startX, float startY, CharacterType type) {
         x = startX; y = startY; character = type;
-        if (type == CharacterType.SOLDIER) { maxHp = 5; speed = 3f; damage = 1; fireRateTicks = 30; }
-        else if (type == CharacterType.MAGE) { maxHp = 3; speed = 3.5f; damage = 2; fireRateTicks = 25; }
-        else if (type == CharacterType.TANK) { maxHp = 8; speed = 2f; damage = 1; fireRateTicks = 40; }
-        else if (type == CharacterType.ROGUE) { maxHp = 4; speed = 4f; damage = 1; fireRateTicks = 20; }
+        if (type == CharacterType.SOLDIER) { 
+            maxHp = 5; speed = 3f; damage = 1; fireRateTicks = 30; 
+            soldierExplosiveCharge = 0; // Passive: Every 5 shots explode
+        }
+        else if (type == CharacterType.MAGE) { 
+            maxHp = 3; speed = 3.5f; damage = 2; fireRateTicks = 25; 
+            mageChainLightning = 0; // Passive: Chain kills to nearby enemies
+        }
+        else if (type == CharacterType.TANK) { 
+            maxHp = 8; speed = 2f; damage = 1; fireRateTicks = 40; 
+            tankShieldRegen = 0; // Passive: Regen 1 armor every 3 seconds
+        }
+        else if (type == CharacterType.ROGUE) { 
+            maxHp = 4; speed = 4f; damage = 1; fireRateTicks = 20; 
+            rogueEvasionChance = 0; // Passive: 15% dodge chance
+        }
         hp = maxHp;
     }
 
