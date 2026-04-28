@@ -36,7 +36,6 @@ public class Player {
     public boolean multishot = false;
     public int armor = 0;
 
-<<<<<<< Updated upstream
     // SUPER POWER ability (E key)
     public int superCooldown = 0;          // Cooldown counter
     public int superDuration = 0;          // How long super power lasts
@@ -44,8 +43,6 @@ public class Player {
     public static final int SUPER_COOLDOWN_MAX = 300; // 5 seconds at 60 FPS
     public static final int SUPER_DURATION_MAX = 90;  // 1.5 seconds at 60 FPS
 
-    // Movement flags (set by KeyListener)
-=======
     // Upgrades
     public float enemySlowPercent = 0f;
     public float critChance = 0f;
@@ -58,7 +55,6 @@ public class Player {
     // ===============================
     // MOVEMENT
     // ===============================
->>>>>>> Stashed changes
     public boolean up, down, left, right;
 
     // ===============================
@@ -123,7 +119,6 @@ public class Player {
     // UPDATE
     // ===============================
     public void update() {
-<<<<<<< Updated upstream
         // Normal movement
         float moveX = 0, moveY = 0;
         float effectiveSpeed = getEffectiveSpeed();
@@ -133,17 +128,6 @@ public class Player {
         if (right) moveX += effectiveSpeed;
         
         // Apply dash velocity (invincible frames during dash)
-=======
-
-        float moveX = 0;
-        float moveY = 0;
-
-        if (up) moveY -= speed;
-        if (down) moveY += speed;
-        if (left) moveX -= speed;
-        if (right) moveX += speed;
-
->>>>>>> Stashed changes
         if (dashDuration > 0) {
             x += dashVx;
             y += dashVy;
@@ -157,7 +141,6 @@ public class Player {
         x = Math.max(0, Math.min(GameFrame.WIDTH - SIZE, x));
         y = Math.max(55, Math.min(GameFrame.HEIGHT - SIZE, y));
 
-<<<<<<< Updated upstream
         // Tick cooldowns
         if (fireCooldown > 0) fireCooldown--;
         if (dashCooldown > 0) dashCooldown--;
@@ -168,20 +151,12 @@ public class Player {
                 superActive = false;
             }
         }
-=======
-        if (fireCooldown > 0)
-            fireCooldown--;
-
-        if (dashCooldown > 0)
-            dashCooldown--;
->>>>>>> Stashed changes
     }
 
     // ===============================
     // DASH
     // ===============================
     public boolean tryDash() {
-<<<<<<< Updated upstream
         if (dashCooldown > 0) return false; // Still on cooldown
         
         float dirX = 0, dirY = 0;
@@ -200,31 +175,6 @@ public class Player {
         float effectiveSpeed = getEffectiveSpeed();
         dashVx = dirX * 12f * (effectiveSpeed / speed); // Scale dash speed by speed multiplier
         dashVy = dirY * 12f * (effectiveSpeed / speed);
-=======
-
-        if (dashCooldown > 0)
-            return false;
-
-        float dirX = 0;
-        float dirY = 0;
-
-        if (up) dirY--;
-        if (down) dirY++;
-        if (left) dirX--;
-        if (right) dirX++;
-
-        if (dirX == 0 && dirY == 0)
-            return false;
-
-        float len = (float)Math.sqrt(dirX * dirX + dirY * dirY);
-
-        dirX /= len;
-        dirY /= len;
-
-        dashVx = dirX * 12f;
-        dashVy = dirY * 12f;
-
->>>>>>> Stashed changes
         dashDuration = DASH_DURATION_MAX;
         dashCooldown = DASH_COOLDOWN_MAX;
         
@@ -233,7 +183,6 @@ public class Player {
 
         return true;
     }
-<<<<<<< Updated upstream
     
     /** Activate super power based on character type */
     public boolean trySuperPower() {
@@ -292,46 +241,6 @@ public class Player {
         if (isSuperInvincible()) return; // Tank super power: temporary invincibility
         if(armor>0){armor=Math.max(0,armor-dmg);return;} 
         hp = Math.max(0, hp - dmg); 
-    }
-=======
->>>>>>> Stashed changes
-
-    public boolean isDashing() {
-        return dashDuration > 0;
-    }
-
-    // ===============================
-    // SHOOTING
-    // ===============================
-    public boolean canShoot() {
-        return fireCooldown <= 0;
-    }
-
-    public void resetCooldown() {
-        fireCooldown = fireRateTicks;
-    }
-
-    // ===============================
-    // DAMAGE
-    // ===============================
-    public void takeDamage(int dmg) {
-
-        if (isDashing())
-            return;
-
-        if (armor > 0) {
-            armor -= dmg;
-
-            if (armor < 0)
-                armor = 0;
-
-            return;
-        }
-
-        hp -= dmg;
-
-        if (hp < 0)
-            hp = 0;
     }
 
     // ===============================
@@ -416,7 +325,6 @@ public class Player {
             g.drawOval(px - 5, py - 5, SIZE + 10, SIZE + 10);
         }
 
-<<<<<<< Updated upstream
         // SUPER POWER visual effects
         if (superActive) {
             float superAlpha = (float) superDuration / SUPER_DURATION_MAX;
@@ -436,8 +344,6 @@ public class Player {
         }
 
         // Restore transform
-=======
->>>>>>> Stashed changes
         g.setTransform(old);
 
         drawHPBar(g);
