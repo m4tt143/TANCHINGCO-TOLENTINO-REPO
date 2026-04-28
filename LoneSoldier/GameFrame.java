@@ -1,8 +1,6 @@
 import javax.swing.*;
+import java.awt.*;
 
-/**
- * GameFrame - Main Game Window
- */
 public class GameFrame extends JFrame {
 
     public static final int WIDTH = 800;
@@ -13,23 +11,17 @@ public class GameFrame extends JFrame {
 
         GamePanel gamePanel = new GamePanel();
 
-        this.add(gamePanel);
         this.setTitle(TITLE);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // Allow resize / maximize
-        this.setResizable(true);
+        this.setLayout(new BorderLayout());
+        this.add(gamePanel, BorderLayout.CENTER);
 
         this.setSize(WIDTH, HEIGHT);
-
-        // Open at center of screen
         this.setLocationRelativeTo(null);
 
-        // Show minimize/maximize buttons
-        this.setExtendedState(JFrame.NORMAL);
+        this.setResizable(true);
 
         this.setVisible(true);
-
-        gamePanel.requestFocusInWindow();
     }
 }

@@ -1,15 +1,12 @@
 import javax.swing.SwingUtilities;
+import javax.swing.JFrame;
 
-/**
- * LAST OUTPOST: Last Stand
- * Survival Defense Game
- *
- * By: Tolentino & Tanchingco
- * Programming 2 Finals Project
- * UPHSD Molino - CCS
- */
 public class Main {
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(GameFrame::new);
+        SwingUtilities.invokeLater(() -> {
+            GameFrame frame = new GameFrame();
+            frame.setResizable(true);
+            frame.setExtendedState(JFrame.NORMAL);
+        });
     }
 }
