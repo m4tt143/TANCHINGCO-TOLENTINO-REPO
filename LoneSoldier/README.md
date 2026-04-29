@@ -1,7 +1,5 @@
 # LAST OUTPOST: Last Stand
 
-![Game Logo](assets/images/title.png)
-
 ### Programming 2 Finals Project — UPHSD Molino, CCS
 **Group 20:** Tolentino & Tanchingco
 
@@ -277,6 +275,21 @@ LoneSoldier/
 ## Screenshots
 
 > *(Add screenshots of your final build here before submission)*
+![Pic name](LoneSoldier/DocPics/Screenshot (121).png)
+![Pic name](LoneSoldier/DocPics/Screenshot (122).png)
+![Pic name](LoneSoldier/DocPics/Screenshot (123).png)
+![Pic name](LoneSoldier/DocPics/Screenshot (124).png)
+![Pic name](LoneSoldier/DocPics/Screenshot (125).png)
+![Pic name](LoneSoldier/DocPics/Screenshot (126).png)
+![Pic name](LoneSoldier/DocPics/Screenshot (127).png)
+
+
+
+
+
+
+
+
 
 ---
 
@@ -285,7 +298,7 @@ LoneSoldier/
 | Name       | Role                                          |
 |------------|-----------------------------------------------|
 | Tolentino  | Player logic, WaveManager, game loop          |
-| Tanchico   | Enemy AI, Bullet system, UI/rendering         |
+| Tanchingco | Enemy AI, Bullet system, UI/rendering         |
 
 ---
 
