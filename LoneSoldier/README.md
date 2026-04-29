@@ -275,13 +275,13 @@ LoneSoldier/
 ## Screenshots
 
 > *(Add screenshots of your final build here before submission)*
-![Pic name](LoneSoldier/DocPics/Screenshot (121).png)
-![Pic name](LoneSoldier/DocPics/Screenshot (122).png)
-![Pic name](LoneSoldier/DocPics/Screenshot (123).png)
-![Pic name](LoneSoldier/DocPics/Screenshot (124).png)
-![Pic name](LoneSoldier/DocPics/Screenshot (125).png)
-![Pic name](LoneSoldier/DocPics/Screenshot (126).png)
-![Pic name](LoneSoldier/DocPics/Screenshot (127).png)
+![Pic name](DocPics/Screenshot (121).png)
+![Pic name](DocPics/Screenshot (122).png)
+![Pic name](DocPics/Screenshot (123).png)
+![Pic name](DocPics/Screenshot (124).png)
+![Pic name](DocPics/Screenshot (125).png)
+![Pic name](DocPics/Screenshot (126).png)
+![Pic name](DocPics/Screenshot (127).png)
 
 
 
