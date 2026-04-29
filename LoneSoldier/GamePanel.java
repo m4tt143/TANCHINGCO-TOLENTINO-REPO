@@ -90,12 +90,12 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private int meteoriteCount = 0;
     
     // ── Advanced Effects ──
-    private int bloomAlpha = 0; // Screen bloom on big moments
-    private int comboMilestoneFlash = 0; // 25, 50, 100 kill combo celebrations
-    private int perfectWaveBonus = 0; // Bonus for surviving wave without taking damage
-    private int bulletTrailAlpha = 0; // Visual trail effect strength
-    private int bossRageMode = 0; // Boss special attack mode
-    private int difficultyModifier = 1; // Scales with waves (affects enemy stats)
+    private int bloomAlpha = 0;
+    private int comboMilestoneFlash = 0;
+    private int perfectWaveBonus = 0;
+    private int bulletTrailAlpha = 0;
+    private int bossRageMode = 0;
+    private int difficultyModifier = 1;
     
     // ── Character Unique Mechanics ──
     private int characterSpecialCharge = 0;
@@ -227,7 +227,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         if (shopBought[3]) player.coinMultiplier += 0.25f;
         player.hp = player.maxHp;
 
-        // Spawn initial barrels
         for (int i = 0; i < 4; i++) {
             barrels.add(new ExplosiveBarrel(
                 60 + (float)Math.random() * (GameFrame.WIDTH - 120),
@@ -278,7 +277,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             }
         }
 
-        // Coin magnet
         if (player.coinMagnetTimer > 0) {
             for (LootDrop ld : lootDrops) {
                 float dx = player.getCenterX() - ld.x;
@@ -317,7 +315,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             lastWaveShown = w;
             waveFlashTicks = 150;
             SoundManager.waveStart();
-            // Spawn new barrels every 3 waves
             if (w % 3 == 0) {
                 for (int i = 0; i < 2; i++) {
                     barrels.add(new ExplosiveBarrel(
@@ -326,7 +323,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                     ));
                 }
             }
-            // Random events every few waves
             updateEventSystem(w);
         }
         if (waveFlashTicks > 0) waveFlashTicks--;
@@ -345,7 +341,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             crosshairPulse = 8;
         }
 
-        // Enemy shooting
         for (Enemy e : enemies) {
             if (e.type.canShoot && e.shootCooldown-- <= 0) {
                 e.shootCooldown = e.type == EnemyType.BOSS ? 30 + (int)(Math.random()*20) : 50 + (int)(Math.random()*60);
@@ -359,7 +354,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             }
         }
 
-        // Update enemy bullets
         deadEnemyBulletsPool.clear();
         for (EnemyProjectile eb : enemyBullets) {
             eb.update();
@@ -377,14 +371,12 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         }
         enemyBullets.removeAll(deadEnemyBulletsPool);
 
-        // Bullets vs enemies
         deadBulletsPool.clear();
         deadEnemiesPool.clear();
         for (Bullet b : bullets) {
             b.update();
             if (b.isOffScreen()) { deadBulletsPool.add(b); continue; }
 
-            // Bullets vs barrels
             for (ExplosiveBarrel barrel : barrels) {
                 if (!barrel.exploded && b.getBounds().intersects(barrel.getBounds())) {
                     barrel.takeDamage(b.damage);
@@ -416,13 +408,12 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                         killStreak++; killStreakTimer = 180; comboCount++;
                         if (killStreak >= 5) comboDisplayTicks = 60;
                         
-                        // ── Combo Milestone Celebrations ──
                         if (totalKills % 50 == 0) {
-                            bloomAlpha = 180; // Screen bloom
+                            bloomAlpha = 180;
                             screenShakeTicks = 30;
                             screenShakeX = 18;
                             comboMilestoneFlash = 120;
-                            coins += 100; // Bonus coins
+                            coins += 100;
                         } else if (totalKills % 25 == 0) {
                             bloomAlpha = 100;
                             screenShakeTicks = 20;
@@ -441,7 +432,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                         spawnBloodDecal(e);
                         spawnFloatText(e.getCenterX(), e.getCenterY()-10, "+" + earnedCoins + "$", 255, 215, 0, 14);
 
-                        // Loot drop chance
                         if (Math.random() < 0.12 || e.type == EnemyType.BOSS) {
                             LootDrop.Type[] types = LootDrop.Type.values();
                             LootDrop.Type lt = types[(int)(Math.random() * types.length)];
@@ -458,7 +448,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         bullets.removeAll(deadBulletsPool);
         enemies.removeAll(deadEnemiesPool);
 
-        // Exploder enemies
         for (Enemy e : enemies) {
             if (e.type == EnemyType.EXPLODER && e.explodeTimer == 0) {
                 explodeEnemy(e);
@@ -466,7 +455,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         }
         enemies.removeIf(e -> e.type == EnemyType.EXPLODER && e.explodeTimer == 0);
 
-        // Loot collection
         List<LootDrop> collectedLoot = new ArrayList<>();
         for (LootDrop ld : lootDrops) {
             float dx = player.getCenterX() - ld.x;
@@ -480,7 +468,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         }
         lootDrops.removeAll(collectedLoot);
 
-        // Player vs enemies collision
         hitPlayerPool.clear();
         for (Enemy e : enemies) {
             float effectiveSpeed = e.speed * (1f - player.enemySlowPercent);
@@ -501,7 +488,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         }
         enemies.removeAll(hitPlayerPool);
 
-        // Barrel explosions chain reaction
         deadBarrelsPool.clear();
         for (ExplosiveBarrel barrel : barrels) {
             if (barrel.exploded) {
@@ -526,9 +512,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         if (crosshairPulse > 0) crosshairPulse--;
         if (killFlashTicks > 0) killFlashTicks--;
 
-        // ── Kill Streak Rewards ──
         if (killStreak > 0 && killStreak % 5 == 0 && killStreakTimer > 270) {
-            // Every 5 kills: screen shake celebration
             screenShakeTicks = Math.max(screenShakeTicks, 8);
             screenShakeX = (float)(Math.random() - 0.5) * 6;
             SoundManager.levelUp();
@@ -537,7 +521,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         if (player.hp <= 0) {
             if (totalKills > highScore) {
                 highScore = totalKills;
-                // New high score celebration
                 screenShakeTicks = 60;
                 screenShakeX = 20;
                 SoundManager.levelUp();
@@ -554,7 +537,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private void explodeBarrel(ExplosiveBarrel barrel) {
         addScreenShake(12, 10);
         SoundManager.playerHit();
-        // Damage nearby enemies
         List<Enemy> hitByExplosion = new ArrayList<>();
         for (Enemy e : enemies) {
             float dx = e.getCenterX() - (barrel.x + ExplosiveBarrel.SIZE/2f);
@@ -577,7 +559,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             spawnBloodDecal(e);
         }
         enemies.removeAll(hitByExplosion);
-        // Damage player if close
         float pdx = player.getCenterX() - (barrel.x + ExplosiveBarrel.SIZE/2f);
         float pdy = player.getCenterY() - (barrel.y + ExplosiveBarrel.SIZE/2f);
         float pdist = (float)Math.sqrt(pdx*pdx + pdy*pdy);
@@ -586,7 +567,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             damageFlashTicks = 20;
             spawnFloatText(player.getCenterX(), player.getCenterY()-20, "-2 HP", 255, 60, 60);
         }
-        // Visual explosion
         for (int i = 0; i < 40; i++) {
             float ang = (float)(Math.random() * Math.PI * 2);
             float spd = 2f + (float)Math.random() * 7f;
@@ -837,9 +817,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             case "BLOODLUST" -> killStreakLevel += 1;
             case "REGEN" -> player.regenTicksLeft = 999_999_999;
             case "WIDE"  -> player.bulletSpreadAngle += 0.15f;
-            case "PIERCE" -> player.bulletSpreadAngle += 0.08f; // Pierce through enemies
+            case "PIERCE" -> player.bulletSpreadAngle += 0.08f;
             case "RELOAD" -> player.fireRateTicks = Math.max(5, player.fireRateTicks - 8);
-            case "KNOCKBACK" -> player.speed += 0.3f; // Added knock effect
+            case "KNOCKBACK" -> player.speed += 0.3f;
             case "LIFESTEAL" -> player.damage += 1;
             case "FOCUS" -> player.fireRateTicks = Math.max(6, (int)(player.fireRateTicks * 0.67f));
             case "FRENZY" -> { player.damage += 2; player.fireRateTicks = Math.max(12, player.fireRateTicks - 10); }
@@ -851,7 +831,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     }
 
     private void checkSynergies(String newUpgrade) {
-        // HUNTER'S MARK: POWER + CRIT = Bonus +15% crit damage
         if ((newUpgrade.equals("POWER") || newUpgrade.equals("CRIT")) && player.damage >= 2 && player.critChance >= 0.15f) {
             if (!activesynergy.contains("HUNTER")) {
                 activesynergy = "HUNTER'S MARK";
@@ -861,7 +840,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                 screenShakeTicks = 15; screenShakeX = 8;
             }
         }
-        // ETERNAL FORTRESS: ARMOR + HP UP = Enemy knockback -50%
         if ((newUpgrade.equals("ARMOR") || newUpgrade.equals("HP UP")) && player.armor >= 5 && player.maxHp >= 8) {
             if (!activesynergy.contains("FORTRESS")) {
                 activesynergy = "ETERNAL FORTRESS";
@@ -871,7 +849,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                 screenShakeTicks = 12; screenShakeX = 6;
             }
         }
-        // MAELSTROM: MULTI + WIDE = 3x damage multiplier on projectiles
         if ((newUpgrade.equals("MULTI") || newUpgrade.equals("WIDE")) && player.multishot && player.bulletSpreadAngle >= 0.15f) {
             if (!activesynergy.contains("MAELSTROM")) {
                 activesynergy = "MAELSTROM";
@@ -881,7 +858,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
                 screenShakeTicks = 18; screenShakeX = 10;
             }
         }
-        // BLOOD ECHO: BLOODLUST + CRIT = 50% more coins from crits
         if ((newUpgrade.equals("BLOODLUST") || newUpgrade.equals("CRIT")) && killStreakLevel >= 1 && player.critChance >= 0.15f) {
             if (!activesynergy.contains("ECHO")) {
                 activesynergy = "BLOOD ECHO";
@@ -893,22 +869,36 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         }
     }
 
+    // ─────────────────────────────────────────────────────────────
+    //  Rendering — paintComponent (FIXED: proper scaling + no borders)
+    // ─────────────────────────────────────────────────────────────
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+
+        // Fill the entire panel black first (handles letterboxing area)
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, getWidth(), getHeight());
 
-        double scaleX = getWidth() / (double) BASE_WIDTH;
-        double scaleY = getHeight() / (double) BASE_HEIGHT;
+        // Compute uniform scale to preserve aspect ratio without black bars
+        double panelW = getWidth();
+        double panelH = getHeight();
+        double scaleX = panelW / (double) BASE_WIDTH;
+        double scaleY = panelH / (double) BASE_HEIGHT;
 
         Graphics2D g2 = (Graphics2D) g.create();
+
+        // Apply scale — stretches to fill the window exactly, no black bars
         g2.scale(scaleX, scaleY);
 
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_RENDERING,         RenderingHints.VALUE_RENDER_SPEED);
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,     RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        // High-quality rendering hints for crisp text at any size
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,        RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,   RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING,           RenderingHints.VALUE_RENDER_QUALITY);
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,       RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,   RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,      RenderingHints.VALUE_STROKE_PURE);
 
         switch (state) {
             case CHARACTER_SELECT -> drawCharacterSelect(g2);
@@ -920,15 +910,8 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             case GAME_OVER        -> drawGameOver(g2);
         }
 
-        // Global CRT scanlines
-        g2.setColor(new Color(0, 0, 0, 18));
-        for (int y = 0; y < GameFrame.HEIGHT; y += 2) g2.drawLine(0, y, GameFrame.WIDTH, y);
-
-        // Global vignette
-        for (int i = 0; i < 45; i++) {
-            g2.setColor(new Color(0, 0, 0, (int)(i * 1.3f)));
-            g2.drawRect(i, i, GameFrame.WIDTH - i*2, GameFrame.HEIGHT - i*2);
-        }
+        // ── Removed: CRT scanlines (darkened the screen) ──
+        // ── Removed: global vignette border (caused black edges) ──
 
         if (fadeAlpha > 0) {
             g2.setColor(new Color(0, 0, 0, fadeAlpha));
@@ -941,8 +924,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     // ── Event System ──
     private void updateEventSystem(int wave) {
         java.util.Random rand = new java.util.Random();
-        
-        // Boss Rush: Every 10 waves
         if (wave % 10 == 0) {
             currentEvent = "BOSS RUSH";
             eventDuration = 600;
@@ -950,9 +931,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             waveManager.setEliteBoost(true);
             screenShakeTicks = 30;
             screenShakeX = 15;
-        }
-        // Meteor Storm: Random event
-        else if (wave % 5 == 0 && rand.nextDouble() < 0.4) {
+        } else if (wave % 5 == 0 && rand.nextDouble() < 0.4) {
             currentEvent = "METEOR STORM";
             eventDuration = 400;
             meteoriteCount = 8 + rand.nextInt(6);
@@ -960,16 +939,12 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             coins += 50 * prestigeMultiplier;
             screenShakeTicks = 25;
             screenShakeX = 12;
-        }
-        // Elite Surge: More elite enemies
-        else if (wave >= 5 && rand.nextDouble() < 0.3) {
+        } else if (wave >= 5 && rand.nextDouble() < 0.3) {
             currentEvent = "ELITE SURGE";
             eventDuration = 300;
             waveManager.setEliteBoost(true);
             coins += 30 * prestigeMultiplier;
-        }
-        // Loot Explosion: Extra drops on kills
-        else if (wave >= 3 && rand.nextDouble() < 0.25) {
+        } else if (wave >= 3 && rand.nextDouble() < 0.25) {
             currentEvent = "LOOT EXPLOSION";
             eventDuration = 350;
             coins += 25 * prestigeMultiplier;
@@ -979,9 +954,11 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     private void drawGame(Graphics2D screenG) {
         Graphics2D g = gameBuffer.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+        g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
 
-        g.setColor(new Color(5, 8, 6));
+        // ── Brighter base background color ──
+        g.setColor(new Color(18, 32, 22));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
         drawBackground(g);
@@ -989,14 +966,12 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         Graphics2D g2 = (Graphics2D) g.create();
         g2.translate(-cameraX + screenShakeX, -cameraY + screenShakeY);
 
-        // Blood decals
         for (float[] b : bloodDecals) {
             int alpha = Math.min(255, (int)b[6]);
             g2.setColor(new Color((int)b[3], (int)b[4], (int)b[5], alpha));
             g2.fillOval((int)(b[0]-b[2]/2), (int)(b[1]-b[2]/2), (int)b[2], (int)b[2]);
         }
 
-        // Particles
         for (float[] p : particles) {
             float lr = p[4] / p[5];
             int a  = Math.max(0, Math.min(255, (int)(lr * 230)));
@@ -1008,10 +983,8 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             g2.fillOval((int)p[0]-sz/2, (int)p[1]-sz/2, sz, sz);
         }
 
-        // Barrels
         for (ExplosiveBarrel barrel : barrels) barrel.draw(g2);
 
-        // Damage vignette
         if (damageFlashTicks > 0) {
             int fa = Math.min(180, damageFlashTicks * 14);
             for (int i = 0; i < 22; i++) {
@@ -1020,7 +993,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             }
         }
 
-        // Nuke flash
         if (nukeFlashTicks > 0) {
             int alpha = nukeFlashTicks * 12;
             g2.setColor(new Color(255, 255, 200, Math.min(200, alpha)));
@@ -1039,7 +1011,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         player.draw(playerG, aim, characterImages);
         playerG.dispose();
 
-        // Floating texts
         for (Object[] ft : floatTexts) {
             int life = (int)ft[3];
             if (life <= 0) continue;
@@ -1053,7 +1024,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             g2.drawString((String)ft[4], (int)(float)(Float)ft[0], (int)(float)(Float)ft[1]);
         }
 
-        // Wave banner
         if (waveFlashTicks > 0) {
             float alpha = Math.min(1f, waveFlashTicks / 40f);
             int bw = 320, bh = 64, bx = GameFrame.WIDTH/2-bw/2, by = GameFrame.HEIGHT/2-bh/2;
@@ -1072,7 +1042,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             g2.drawString(wt, GameFrame.WIDTH/2 - fm.stringWidth(wt)/2, GameFrame.HEIGHT/2 + 9);
         }
 
-        // Combo display
         if (comboDisplayTicks > 0 && comboCount >= 5) {
             float alpha = comboDisplayTicks / 60f;
             g2.setFont(FONT_MONO_BOLD_22);
@@ -1108,7 +1077,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         drawHUD(screenG);
         drawAbilityIcons(screenG);
 
-        // Weather overlay
         weather.draw(screenG);
     }
 
@@ -1130,18 +1098,20 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         d.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
         d.setComposite(AlphaComposite.SrcOver);
 
-        d.setColor(new Color(6, 12, 10, 200));
+        // ── Brighter: reduced darkness alpha from 200 → 110 ──
+        d.setColor(new Color(6, 12, 10, 110));
         d.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
-        float radius = 185f + (float)(Math.sin(animTick * 0.07) * 15);
+        // ── Brighter: larger torch radius 185 → 290 ──
+        float radius = 290f + (float)(Math.sin(animTick * 0.07) * 18);
         float px = player.getCenterX() - camX;
         float py = player.getCenterY() - camY;
 
         d.setComposite(AlphaComposite.DstOut);
         RadialGradientPaint torch = new RadialGradientPaint(
             px, py, radius,
-            new float[]{0f, 0.35f, 1f},
-            new Color[]{new Color(255, 250, 220, 0), new Color(255, 250, 220, 50), new Color(0, 0, 0, 220)}
+            new float[]{0f, 0.45f, 1f},
+            new Color[]{new Color(255, 250, 220, 0), new Color(255, 250, 220, 30), new Color(0, 0, 0, 180)}
         );
         d.setPaint(torch);
         d.fillOval((int)(px-radius), (int)(py-radius), (int)(radius*2), (int)(radius*2));
@@ -1163,7 +1133,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             }
         }
 
-        // Loot glow
         for (LootDrop ld : lootDrops) {
             float lx = ld.x - camX;
             float ly = ld.y - camY;
@@ -1389,7 +1358,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             g.fillRect(barX+barW+100, barY+28, 40, 4);
         }
 
-        // Buff indicators
         int buffX = barX + barW + 155;
         if (player.speedBoostTimer > 0) {
             g.setColor(new Color(0, 200, 255, 180));
@@ -1429,7 +1397,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         g.setColor(new Color(200, 100, 100));
         g.drawString(en, GameFrame.WIDTH - fm.stringWidth(en) - 12, GameFrame.HEIGHT-14);
 
-        // ── Synergy Display ──
         if (synergyDisplayTicks > 0) {
             float alpha = synergyDisplayTicks / 240f;
             g.setColor(new Color(255, 200, 50, (int)(200*alpha)));
@@ -1438,7 +1405,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             g.drawString(synText, GameFrame.WIDTH/2 - g.getFontMetrics().stringWidth(synText)/2, 75);
         }
 
-        // ── Event Display ──
         if (!currentEvent.isEmpty() && eventDuration > 0) {
             float eventAlpha = eventDuration > 300 ? 1f : eventDuration / 300f;
             g.setColor(new Color(220, 100, 100, (int)(220*eventAlpha)));
@@ -1464,7 +1430,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         g.setPaint(new RadialGradientPaint(
             center, radius,
             new float[]{0f, 0.55f, 1f},
-            new Color[]{new Color(18, 54, 32), new Color(8, 14, 12), new Color(4, 8, 10)}
+            new Color[]{new Color(22, 62, 38), new Color(12, 20, 16), new Color(6, 10, 12)}
         ));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
@@ -1570,7 +1536,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         g.setColor(new Color(130, 170, 140));
         for (int i = 0; i < stats.length; i++) g.drawString(stats[i], x+12, y+190+i*18);
 
-        // Unique Passives
         String passiveAbility = switch(chr) {
             case SOLDIER -> "✦ Every 5 shots explode";
             case MAGE    -> "✦ Chain kills to nearby foes";
@@ -1606,7 +1571,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     // ── SHOP ─────────────────────────────────────────────────────
 
     private void drawShop(Graphics2D g) {
-        g.setColor(new Color(5, 8, 12));
+        g.setColor(new Color(8, 12, 18));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
         g.setFont(FONT_MONO_BOLD_36);
@@ -1783,32 +1748,35 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     // ── Background ────────────────────────────────────────────────
 
     private void drawBackground(Graphics2D g) {
-        g.setColor(new Color(8, 18, 12));
+        // ── Brighter base: was (8,18,12), now (22,42,28) ──
+        g.setColor(new Color(22, 42, 28));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
         bgRandom.setSeed(42);
         for (int i = 0; i < 18; i++) {
             int bx = bgRandom.nextInt(GameFrame.WIDTH), by = 56 + bgRandom.nextInt(GameFrame.HEIGHT-80);
             int bw = 30 + bgRandom.nextInt(50), bh = 20 + bgRandom.nextInt(30);
-            g.setColor(new Color(18, 38, 22, 60));
+            // ── Brighter shrubs ──
+            g.setColor(new Color(30, 60, 34, 80));
             g.fillOval(bx, by, bw, bh);
         }
         for (int i = 0; i < 40; i++) {
             int gx = bgRandom.nextInt(GameFrame.WIDTH), gy = 56 + bgRandom.nextInt(GameFrame.HEIGHT-80);
-            int ga = (int)(30 + 20 * Math.sin(animTick * 0.02 + i));
-            g.setColor(new Color(30, 70, 30, ga));
+            int ga = (int)(45 + 25 * Math.sin(animTick * 0.02 + i));
+            // ── Brighter grass blades ──
+            g.setColor(new Color(50, 100, 50, ga));
             g.fillRect(gx, gy, 2, 5); g.fillRect(gx+3, gy+1, 2, 4); g.fillRect(gx-2, gy+2, 2, 3);
         }
-        g.setColor(new Color(25, 55, 38, 70));
+        // ── Brighter grid dots ──
+        g.setColor(new Color(40, 85, 52, 80));
         for (int x = 0; x < GameFrame.WIDTH; x += 32)
             for (int y = 56; y < GameFrame.HEIGHT; y += 32)
                 g.fillRect(x, y, 1, 1);
-        g.setColor(new Color(20, 42, 28, 50));
+        // ── Brighter center glow ──
+        g.setColor(new Color(35, 75, 48, 80));
         g.fillOval(GameFrame.WIDTH/2-120, GameFrame.HEIGHT/2-80, 240, 160);
-        for (int i = 0; i < 60; i++) {
-            g.setColor(new Color(0, 0, 0, (int)(i * 2.0f)));
-            g.drawRect(i, i, GameFrame.WIDTH-i*2, GameFrame.HEIGHT-i*2);
-        }
+
+        // ── Removed: the heavy 60-iteration black vignette border ──
     }
 
     // ── MENU ─────────────────────────────────────────────────────
@@ -1824,21 +1792,21 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         g.setPaint(new RadialGradientPaint(
             center, radius,
             new float[]{0f, 0.55f, 1f},
-            new Color[]{new Color(10, 26, 18), new Color(6, 12, 10), new Color(4, 8, 10)}
+            new Color[]{new Color(14, 34, 22), new Color(8, 16, 12), new Color(5, 10, 12)}
         ));
         g.fillRect(0, 0, W, H);
         g.setPaint(null);
 
-        g.setColor(new Color(20, 35, 25, 80));
+        g.setColor(new Color(30, 50, 36, 90));
         for (int x = 0; x < W; x += 40) g.drawLine(x, 0, x, H);
         for (int y = 0; y < H; y += 40) g.drawLine(0, y, W, y);
-        g.setColor(new Color(15, 30, 20, 40));
+        g.setColor(new Color(20, 40, 28, 50));
         for (int i = -H; i < W+H; i += 60) g.drawLine(i, 0, i+H, H);
 
         for (int i = 0; i < 6; i++) {
             int x = W/2 + (int)(Math.cos(animTick * 0.02 + i) * 260);
             int y = H/2 + (int)(Math.sin(animTick * 0.023 + i*1.7) * 120);
-            g.setColor(new Color(80, 180, 120, 20));
+            g.setColor(new Color(80, 180, 120, 22));
             g.fillOval(x-70, y-70, 140, 140);
         }
 
@@ -1894,7 +1862,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
             g.drawString(hs, (W - fm.stringWidth(hs)) / 2, 180);
         }
 
-        // Career stats
         if (saveData != null && saveData.gamesPlayed > 0) {
             g.setFont(FONT_MONO_PLAIN_11);
             fm = g.getFontMetrics();
@@ -2087,7 +2054,7 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     // ── GAME OVER ────────────────────────────────────────────────
 
     private void drawGameOver(Graphics2D g) {
-        g.setColor(new Color(5, 8, 8));
+        g.setColor(new Color(8, 10, 10));
         g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
 
         long t = System.currentTimeMillis();
@@ -2110,7 +2077,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         g.setColor(new Color(210, 35, 35));
         g.drawString(got, gx, 184);
 
-        // ── Tier Reward System ──
         String tier = getTierRank(totalKills);
         Color tierColor = getTierColor(totalKills);
         g.setFont(FONT_MONO_BOLD_16);
@@ -2270,7 +2236,6 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         }
     }
 
-    // ── Tier Reward System ──
     private String getTierRank(int kills) {
         if (kills >= 150) return "S - LEGENDARY";
         if (kills >= 100) return "A - ELITE";
@@ -2282,13 +2247,13 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     }
 
     private Color getTierColor(int kills) {
-        if (kills >= 150) return new Color(255, 100, 255); // Legendary: Magenta
-        if (kills >= 100) return new Color(255, 200, 50);  // Elite: Gold
-        if (kills >= 60)  return new Color(100, 200, 255); // Master: Cyan
-        if (kills >= 40)  return new Color(100, 255, 100); // Expert: Green
-        if (kills >= 20)  return new Color(200, 200, 200); // Veteran: Silver
-        if (kills >= 10)  return new Color(150, 150, 255); // Skilled: Blue
-        return new Color(100, 100, 100); // Rookie: Gray
+        if (kills >= 150) return new Color(255, 100, 255);
+        if (kills >= 100) return new Color(255, 200, 50);
+        if (kills >= 60)  return new Color(100, 200, 255);
+        if (kills >= 40)  return new Color(100, 255, 100);
+        if (kills >= 20)  return new Color(200, 200, 200);
+        if (kills >= 10)  return new Color(150, 150, 255);
+        return new Color(100, 100, 100);
     }
 
     @Override

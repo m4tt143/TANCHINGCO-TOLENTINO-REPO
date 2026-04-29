@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
  *   gameOver()     — low dramatic drone on death
  *   levelUp()      — triumphant ascending notes for level gain
  *   dashAbility()  — quick whoosh sound for dash ability
+ *   superAbility() — power surge sound for super ability
  *   upgradeSelect()— clean beep for upgrade selection
  */
 public class SoundManager {
@@ -31,16 +32,17 @@ public class SoundManager {
 
     // ── Public API ────────────────────────────────────────────────
 
-    public static void shoot()      { pool.execute(() -> playShoot()); }
-    public static void enemyHit()   { pool.execute(() -> playEnemyHit()); }
-    public static void enemyDie()   { pool.execute(() -> playEnemyDie()); }
-    public static void playerHit()  { pool.execute(() -> playPlayerHit()); }
-    public static void waveClear()  { pool.execute(() -> playWaveClear()); }
-    public static void waveStart()  { pool.execute(() -> playWaveStart()); }
-    public static void gameOver()   { pool.execute(() -> playGameOver()); }
-    public static void levelUp()    { pool.execute(() -> playLevelUp()); }
-    public static void dashAbility(){ pool.execute(() -> playDashAbility()); }
-    public static void upgradeSelect(){pool.execute(()-> playUpgradeSelect());}
+    public static void shoot()        { pool.execute(() -> playShoot()); }
+    public static void enemyHit()     { pool.execute(() -> playEnemyHit()); }
+    public static void enemyDie()     { pool.execute(() -> playEnemyDie()); }
+    public static void playerHit()    { pool.execute(() -> playPlayerHit()); }
+    public static void waveClear()    { pool.execute(() -> playWaveClear()); }
+    public static void waveStart()    { pool.execute(() -> playWaveStart()); }
+    public static void gameOver()     { pool.execute(() -> playGameOver()); }
+    public static void levelUp()      { pool.execute(() -> playLevelUp()); }
+    public static void dashAbility()  { pool.execute(() -> playDashAbility()); }
+    public static void superAbility() { pool.execute(() -> playSuperAbility()); }
+    public static void upgradeSelect(){ pool.execute(() -> playUpgradeSelect()); }
 
     // ── Sound Synthesis ──────────────────────────────────────────
 
@@ -50,11 +52,9 @@ public class SoundManager {
         byte[] buf = new byte[frames];
         for (int i = 0; i < frames; i++) {
             double t = i / SAMPLE_RATE;
-            // Noise burst that decays fast
             double noise = (Math.random() * 2 - 1);
-            // Tonal click component — high frequency descending
             double tone  = Math.sin(2 * Math.PI * (1200 - i * 8) * t);
-            double env   = Math.exp(-t * 30);  // fast decay
+            double env   = Math.exp(-t * 30);
             buf[i] = clamp((noise * 0.6 + tone * 0.4) * env * 90);
         }
         play(buf, 0.55f);
@@ -65,8 +65,8 @@ public class SoundManager {
         int frames = (int)(SAMPLE_RATE * 0.08f);
         byte[] buf = new byte[frames];
         for (int i = 0; i < frames; i++) {
-            double t   = i / SAMPLE_RATE;
-            double freq = 280 - i * 1.5;  // slight pitch drop
+            double t    = i / SAMPLE_RATE;
+            double freq = 280 - i * 1.5;
             double tone = Math.sin(2 * Math.PI * freq * t);
             double env  = Math.exp(-t * 40);
             buf[i] = clamp(tone * env * 100);
@@ -79,9 +79,9 @@ public class SoundManager {
         int frames = (int)(SAMPLE_RATE * 0.18f);
         byte[] buf = new byte[frames];
         for (int i = 0; i < frames; i++) {
-            double t    = i / SAMPLE_RATE;
-            double freq = 500 * Math.exp(-t * 8);  // fast descending
-            double tone = Math.sin(2 * Math.PI * freq * t);
+            double t     = i / SAMPLE_RATE;
+            double freq  = 500 * Math.exp(-t * 8);
+            double tone  = Math.sin(2 * Math.PI * freq * t);
             double noise = (Math.random() * 2 - 1) * 0.15;
             double env   = Math.exp(-t * 12);
             buf[i] = clamp((tone + noise) * env * 110);
@@ -94,16 +94,12 @@ public class SoundManager {
         int frames = (int)(SAMPLE_RATE * 0.35f);
         byte[] buf = new byte[frames];
         for (int i = 0; i < frames; i++) {
-            double t    = i / SAMPLE_RATE;
-            // Low rumble
-            double bass = Math.sin(2 * Math.PI * 60 * t);
-            // Mid crunch
-            double mid  = Math.sin(2 * Math.PI * 180 * t);
-            // Noise layer
+            double t     = i / SAMPLE_RATE;
+            double bass  = Math.sin(2 * Math.PI * 60 * t);
+            double mid   = Math.sin(2 * Math.PI * 180 * t);
             double noise = (Math.random() * 2 - 1) * 0.3;
             double env   = Math.exp(-t * 8);
             double sample = (bass * 0.5 + mid * 0.3 + noise) * env;
-            // Soft clipping for crunch
             sample = Math.tanh(sample * 2.0) * 0.85;
             buf[i] = clamp(sample * 115);
         }
@@ -120,9 +116,8 @@ public class SoundManager {
             for (int i = 0; i < noteDur; i++) {
                 double t    = i / SAMPLE_RATE;
                 double tone = Math.sin(2 * Math.PI * notes[n] * t);
-                // Add harmonics for richness
                 double harm = Math.sin(2 * Math.PI * notes[n] * 2 * t) * 0.3;
-                double env  = Math.exp(-t * 4) * (1 - Math.exp(-t * 80)); // attack + decay
+                double env  = Math.exp(-t * 4) * (1 - Math.exp(-t * 80));
                 buf[n * noteDur + i] = clamp((tone + harm) * env * 100);
             }
         }
@@ -151,9 +146,9 @@ public class SoundManager {
         byte[] buf = new byte[frames];
         for (int i = 0; i < frames; i++) {
             double t    = i / SAMPLE_RATE;
-            double freq = 220 * Math.exp(-t * 0.8);   // slow descent
+            double freq = 220 * Math.exp(-t * 0.8);
             double tone = Math.sin(2 * Math.PI * freq * t);
-            double sub  = Math.sin(2 * Math.PI * freq * 0.5 * t) * 0.4; // sub bass
+            double sub  = Math.sin(2 * Math.PI * freq * 0.5 * t) * 0.4;
             double env  = Math.exp(-t * 1.8);
             buf[i] = clamp((tone + sub) * env * 120);
         }
@@ -168,11 +163,11 @@ public class SoundManager {
         byte[] buf  = new byte[total];
         for (int n = 0; n < notes.length; n++) {
             for (int i = 0; i < noteDur; i++) {
-                double t    = i / SAMPLE_RATE;
-                double tone = Math.sin(2 * Math.PI * notes[n] * t);
-                double harm = Math.sin(2 * Math.PI * notes[n] * 2 * t) * 0.2;
-                double harm2= Math.sin(2 * Math.PI * notes[n] * 3 * t) * 0.1;
-                double env  = Math.exp(-t * 5) * (1 - Math.exp(-t * 100));
+                double t     = i / SAMPLE_RATE;
+                double tone  = Math.sin(2 * Math.PI * notes[n] * t);
+                double harm  = Math.sin(2 * Math.PI * notes[n] * 2 * t) * 0.2;
+                double harm2 = Math.sin(2 * Math.PI * notes[n] * 3 * t) * 0.1;
+                double env   = Math.exp(-t * 5) * (1 - Math.exp(-t * 100));
                 buf[n * noteDur + i] = clamp((tone + harm + harm2) * env * 105);
             }
         }
@@ -184,16 +179,38 @@ public class SoundManager {
         int frames = (int)(SAMPLE_RATE * 0.14f);
         byte[] buf = new byte[frames];
         for (int i = 0; i < frames; i++) {
-            double t    = i / SAMPLE_RATE;
-            // Pitch rises quickly
-            double freq = 400 + t * 2000;
-            double tone = Math.sin(2 * Math.PI * freq * t);
-            // Add noise for whoosh effect
+            double t     = i / SAMPLE_RATE;
+            double freq  = 400 + t * 2000;
+            double tone  = Math.sin(2 * Math.PI * freq * t);
             double noise = (Math.random() * 2 - 1) * 0.4;
             double env   = Math.exp(-t * 20);
             buf[i] = clamp((tone * 0.6 + noise * 0.4) * env * 100);
         }
         play(buf, 0.5f);
+    }
+
+    /** Power surge — super ability activated */
+    private static void playSuperAbility() {
+        int frames = (int)(SAMPLE_RATE * 0.45f);
+        byte[] buf = new byte[frames];
+        for (int i = 0; i < frames; i++) {
+            double t       = i / SAMPLE_RATE;
+            // Rising sweep — sense of charging up
+            double freq    = 200 + t * 1800;
+            double sweep   = Math.sin(2 * Math.PI * freq * t);
+            // Deep sub-bass punch underneath
+            double bass    = Math.sin(2 * Math.PI * 80 * t) * 0.5;
+            // High shimmer on top
+            double shimmer = Math.sin(2 * Math.PI * 1400 * t)
+                           * Math.exp(-t * 6) * 0.3;
+            // Noise burst at the start for impact
+            double noise   = (Math.random() * 2 - 1) * Math.exp(-t * 25) * 0.4;
+            double env     = Math.exp(-t * 4) * (1 - Math.exp(-t * 60));
+            double sample  = (sweep * 0.5 + bass + shimmer + noise) * env;
+            sample = Math.tanh(sample * 1.5) * 0.9; // soft clip for punch
+            buf[i] = clamp(sample * 120);
+        }
+        play(buf, 0.85f);
     }
 
     /** Clean beep — upgrade card selected */
