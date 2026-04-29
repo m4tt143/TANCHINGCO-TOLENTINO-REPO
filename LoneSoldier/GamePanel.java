@@ -876,6 +876,10 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        
+        // CLEAR SCREEN EVERY FRAME
+        g.setColor(Color.BLACK);
+        g.fillRect(0, 0, getWidth(), getHeight());
 
         // Fill the entire panel black first (handles letterboxing area)
         g.setColor(Color.BLACK);
@@ -953,6 +957,11 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
 
     private void drawGame(Graphics2D screenG) {
         Graphics2D g = gameBuffer.createGraphics();
+
+        // CLEAR OLD FRAME (fix overlap)
+        g.setComposite(AlphaComposite.Clear);
+        g.fillRect(0, 0, GameFrame.WIDTH, GameFrame.HEIGHT);
+        g.setComposite(AlphaComposite.SrcOver);
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
         g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
@@ -964,6 +973,9 @@ public class GamePanel extends JPanel implements KeyListener, MouseListener, Mou
         drawBackground(g);
 
         Graphics2D g2 = (Graphics2D) g.create();
+
+        g2.setTransform(new java.awt.geom.AffineTransform());
+
         g2.translate(-cameraX + screenShakeX, -cameraY + screenShakeY);
 
         for (float[] b : bloodDecals) {
